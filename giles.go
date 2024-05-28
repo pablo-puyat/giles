@@ -1,10 +1,9 @@
 package main
 
 import (
-	"crypto/sha256"
 	"flag"
 	"fmt"
-	"io"
+	"giles/utils"
 	"os"
 	"path/filepath"
 	"sync/atomic"
@@ -37,7 +36,7 @@ func main() {
 			return nil
 		}
 
-		hash, err := hashFile(path)
+		hash, err := utils.Hash(path)
 		if err != nil {
 			fmt.Printf("Error hashing %s: %v\n", path, err)
 			return nil // Continue with other files
@@ -60,18 +59,4 @@ func main() {
 			}
 		}
 	}
-}
-
-func hashFile(filePath string) (string, error) {
-	f, err := os.Open(filePath)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
