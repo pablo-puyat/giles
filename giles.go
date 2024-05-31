@@ -1,28 +1,16 @@
-package utils
+package main
 
 import (
-	"database/sql"
 	"flag"
 	"fmt"
+	"giles/utils"
 	"os"
 	"path/filepath"
 	"sync/atomic"
 	"time"
 )
 
-type Scanner struct {
-	db       *sql.DB
-	dirPath  string
-	hashFunc func(string) (string, error)
-}
-
-type ScannerBuilder struct {
-	scanner Scanner
-}
-
-func (sb *ScannerBuilder) Build() *Scanner {
-	return &sb.scanner
-}
+var processedFiles uint64 = 0
 
 func main() {
 	dirPath := flag.String("dir", ".", "Directory to scan for duplicates")
