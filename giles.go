@@ -5,12 +5,13 @@ import (
 	"flag"
 	"fmt"
 	"giles/utils"
-	_ "github.com/mattn/go-sqlite3"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 var processedFiles uint64 = 0
@@ -54,7 +55,6 @@ func scanFiles(db *sql.DB, dirPath, extFilter string) {
 			return nil
 		}
 
-		// File extension filtering
 		if extFilter != "" && !strings.HasSuffix(strings.ToLower(path), "."+extFilter) {
 			return nil
 		}
