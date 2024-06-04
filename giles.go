@@ -5,17 +5,12 @@ import (
 	"flag"
 	"fmt"
 	"giles/utils"
+	_ "github.com/mattn/go-sqlite3"
 	"log" // Use log package for errors
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
-	"time"
-
-	_ "github.com/mattn/go-sqlite3"
 )
-
-var processedFiles uint64
 
 func main() {
 	dirPath := flag.String("dir", ".", "Directory to scan for duplicates")
@@ -41,20 +36,21 @@ func main() {
 		log.Fatalf("Error creating table: %v", err)
 	}
 
-	go printProcessedFiles()
-	scanFiles(db, *dirPath, *extFilter)
+	progressCh := make(chan int, 100)
+	go printProcessedFiles(progressCh)
+	scanFiles(db, *dirPath, *extFilter, progressCh)
+	close(progressCh)
 }
 
-func printProcessedFiles() {
-	for {
-		fmt.Printf("\rProcessed %d files...", atomic.LoadUint64(&processedFiles))
-		time.Sleep(500 * time.Millisecond)
+func printProcessedFiles(progressCh <-chan int) {
+	for count := range progressCh {
+		fmt.Printf("\rProcessed %d files", count)
 	}
 }
 
-func scanFiles(db *sql.DB, dirPath, extFilter string) {
+func scanFiles(db *sql.DB, dirPath, extFilter string, progressCh chan<- int) {
+	var processedFiles int
 	filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
-		// Combined condition for efficiency and readability
 		if err != nil || !info.Mode().IsRegular() || (extFilter != "" && !strings.HasSuffix(strings.ToLower(info.Name()), "."+extFilter)) {
 			return nil
 		}
@@ -72,8 +68,8 @@ func scanFiles(db *sql.DB, dirPath, extFilter string) {
 			log.Printf("Error inserting into database: %v", err)
 			return nil
 		}
-
-		atomic.AddUint64(&processedFiles, 1)
+		processedFiles++
+		progressCh <- processedFiles
 		return nil
 	})
 }
