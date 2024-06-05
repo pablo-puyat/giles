@@ -3,10 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
-	_ "github.com/mattn/go-sqlite3"
 	"os"
 	"path/filepath"
 	"strings"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func main() {
