@@ -1,12 +1,9 @@
 package main
 
 import (
-	"database/sql"
 	"flag"
 	"fmt"
-	"giles/utils"
 	_ "github.com/mattn/go-sqlite3"
-	"log" // Use log package for errors
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,59 +14,64 @@ func main() {
 	extFilter := flag.String("ext", "", "File extension to filter (e.g., txt, jpg)")
 	flag.Parse()
 
-	db, err := sql.Open("sqlite3", "./giles.sqlite3")
-	if err != nil {
-		log.Fatalf("Error opening database: %v", err) // Log and exit on fatal errors
-	}
-	defer db.Close()
-
-	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS files (
-        id INTEGER PRIMARY KEY,
-        hash TEXT,
-        name TEXT,
-        path TEXT,
-        size INTEGER,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`)
-	if err != nil {
-		log.Fatalf("Error creating table: %v", err)
-	}
-
 	progressCh := make(chan int, 100)
 	go printProcessedFiles(progressCh)
-	scanFiles(db, *dirPath, *extFilter, progressCh)
+	scanFiles(*dirPath, *extFilter, progressCh)
 	close(progressCh)
+
 }
 
 func printProcessedFiles(progressCh <-chan int) {
 	for count := range progressCh {
+		//print("\r%d", count + " ")
 		fmt.Printf("\rProcessed %d files", count)
 	}
 }
 
-func scanFiles(db *sql.DB, dirPath, extFilter string, progressCh chan<- int) {
+func scanFiles(dirPath, extFilter string, progressCh chan<- int) {
 	var processedFiles int
 	filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil || !info.Mode().IsRegular() || (extFilter != "" && !strings.HasSuffix(strings.ToLower(info.Name()), "."+extFilter)) {
 			return nil
 		}
 
-		hash, err := utils.Hash(path)
-		if err != nil {
-			log.Printf("Error hashing %s: %v", path, err) // Log non-fatal errors
-			return nil
-		}
-
-		if _, err := db.Exec( // Use if statement for better error handling
-			"INSERT OR IGNORE INTO files(hash, name, path, size) values(?, ?, ?, ?)",
-			hash, info.Name(), path, info.Size(),
-		); err != nil {
-			log.Printf("Error inserting into database: %v", err)
-			return nil
-		}
+		//start := time.Now() // Get the current time before the hash calculation
+		//_, err = utils.Hash(path)
+		//duration := time.Since(start)
+		//if err != nil {
+		//	log.Printf("Error hashing %s: %v", path, err) // Log non-fatal errors
+		//	return nil
+		//}
+		//if duration > time.Second { // Check if duration is over 1 second
+		//fileSize := formatBytes(info.Size())
+		//processedFiles = fmt.Sprintf("%s (size: %s, hash time: %v)", path, fileSize, duration)
+		//processedFiles = fmt.Sprintf("%s (size: %s)", path, fileSize)
 		processedFiles++
 		progressCh <- processedFiles
+		//}
 		return nil
 	})
+}
+
+func formatBytes(bytes int64) string {
+	const (
+		_        = iota
+		KB int64 = 1 << (10 * iota)
+		MB
+		GB
+		TB
+	)
+
+	switch {
+	case bytes >= TB:
+		return fmt.Sprintf("%dTB", int64(bytes)/TB)
+	case bytes >= GB:
+		return fmt.Sprintf("%dGB", int64(bytes)/GB)
+	case bytes >= MB:
+		return fmt.Sprintf("%dMB", int64(bytes)/MB)
+	case bytes >= KB:
+		return fmt.Sprintf("%dKB", int64(bytes)/KB)
+	default:
+		return fmt.Sprintf("%dB", bytes)
+	}
 }
