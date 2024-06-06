@@ -9,9 +9,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	_ "github.com/mattn/go-sqlite3"
+	"sync"
 )
+
+const batchSize = 100
 
 func main() {
 	dirPath := flag.String("dir", ".", "Directory to scan for duplicates")
@@ -24,39 +25,42 @@ func main() {
 	}
 	defer db.Close()
 
-	progressCh := make(chan int, 5)
-	databaseCh := make(chan []models.FileData)
-	go printProcessedFiles(progressCh)
-	go insertToDatabase(db, databaseCh)
-	scanFiles(*dirPath, *extFilter, progressCh, databaseCh)
-	close(progressCh)
-	close(databaseCh)
+	var wg sync.WaitGroup // for synchronization
+	wg.Add(1)
+	fileDataCh := make(chan []models.FileData, 10) // Buffer channel for better performance
 
+	go func() {
+		defer wg.Done()
+		insertToDatabase(db, fileDataCh)
+	}()
+
+	scanFiles(*dirPath, *extFilter, fileDataCh)
+
+	close(fileDataCh) // Signal that scanning is done
+	wg.Wait()         // Wait for inserts to complete
+
+	fmt.Println("\nScanning complete.") // Print a clean completion message
 }
 
-func insertToDatabase(db *database.DB, databaseCh <-chan []models.FileData) {
-	for files := range databaseCh {
-		err := db.InsertFiles(files)
-		if err != nil {
+func insertToDatabase(db *database.DB, fileDataCh <-chan []models.FileData) {
+	for files := range fileDataCh {
+		if err := db.InsertFiles(files); err != nil {
 			log.Printf("Error inserting files: %v", err)
+			// Consider adding better error handling here (e.g., retry)
 		}
 	}
 }
 
-func printProcessedFiles(progressCh <-chan int) {
-	for count := range progressCh {
-		fmt.Printf("\rProcessed %d files", count)
-	}
-}
-
-func scanFiles(dirPath, extFilter string, progressCh chan<- int, databaseCh chan<- []models.FileData) {
-	var (
-		processedFiles int
-		fileBuffer     []models.FileData
-	)
-
-	filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil || !info.Mode().IsRegular() || (extFilter != "" && !strings.HasSuffix(strings.ToLower(info.Name()), "."+extFilter)) {
+func scanFiles(dirPath, extFilter string, fileDataCh chan<- []models.FileData) {
+	fileBuffer := make([]models.FileData, 0, batchSize)
+	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err // Handle errors immediately in the walk function
+		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+		if extFilter != "" && !strings.HasSuffix(strings.ToLower(info.Name()), "."+extFilter) {
 			return nil
 		}
 
@@ -67,17 +71,18 @@ func scanFiles(dirPath, extFilter string, progressCh chan<- int, databaseCh chan
 		}
 
 		fileBuffer = append(fileBuffer, fileData)
-		if len(fileBuffer) >= 100 {
-			databaseCh <- fileBuffer
-			fileBuffer = nil
+		if len(fileBuffer) == batchSize {
+			fileDataCh <- fileBuffer // Send a full batch
+			fileBuffer = fileBuffer[:0]
 		}
-
-		processedFiles++
-		progressCh <- processedFiles
 		return nil
 	})
 
+	if err != nil {
+		log.Fatalf("Error during file walk: %v", err)
+	}
+
 	if len(fileBuffer) > 0 {
-		databaseCh <- fileBuffer
+		fileDataCh <- fileBuffer // Send any remaining files
 	}
 }
