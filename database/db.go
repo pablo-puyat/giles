@@ -4,33 +4,44 @@ import (
 	"database/sql"
 	"fmt"
 	"giles/models"
+	"sync"
+
 	_ "github.com/mattn/go-sqlite3"
 )
 
+var (
+	dbInstance *DB
+	dbOnce     sync.Once
+)
+
 type DB struct {
-	*sql.DB
+	*sql.DB // Embed the *sql.DB to get its methods
 }
 
-func NewConnection() (*DB, error) {
-	db, err := sql.Open("sqlite3", "./giles.sqlite3")
-	if err != nil {
-		return nil, fmt.Errorf("error opening database: %v", err)
-	}
+func GetInstance() (*DB, error) {
+	dbOnce.Do(func() {
+		var err error
+		sqlDB, err := sql.Open("sqlite3", "./giles.sqlite3")
+		if err != nil {
+			panic(fmt.Errorf("error opening database: %v", err))
+		}
 
-	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS files (
-        id INTEGER PRIMARY KEY,
-        hash TEXT,
-        name TEXT,
-        path TEXT,
-        size INTEGER,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`)
-	if err != nil {
-		return nil, fmt.Errorf("error creating table: %v", err)
-	}
+		dbInstance = &DB{sqlDB} // Correctly assign the *sql.DB to the embedded field
 
-	return &DB{db}, nil
+		_, err = dbInstance.Exec(`CREATE TABLE IF NOT EXISTS files (
+            id INTEGER PRIMARY KEY,
+            hash TEXT,
+            name TEXT,
+            path TEXT,
+            size INTEGER,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`)
+		if err != nil {
+			panic(fmt.Errorf("error creating table: %v", err))
+		}
+	})
+	return dbInstance, nil
 }
 
 func (db *DB) InsertFiles(files []models.FileData) error {

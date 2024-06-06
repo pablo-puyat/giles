@@ -19,19 +19,13 @@ func main() {
 	extFilter := flag.String("ext", "", "File extension to filter (e.g., txt, jpg)")
 	flag.Parse()
 
-	db, err := database.NewConnection()
-	if err != nil {
-		log.Fatalf("Database connection error: %v", err)
-	}
-	defer db.Close()
-
 	var wg sync.WaitGroup // for synchronization
 	wg.Add(1)
 	fileDataCh := make(chan []models.FileData, 10) // Buffer channel for better performance
 
 	go func() {
 		defer wg.Done()
-		insertToDatabase(db, fileDataCh)
+		insertToDatabase(fileDataCh)
 	}()
 
 	scanFiles(*dirPath, *extFilter, fileDataCh)
@@ -42,11 +36,16 @@ func main() {
 	fmt.Println("\nScanning complete.") // Print a clean completion message
 }
 
-func insertToDatabase(db *database.DB, fileDataCh <-chan []models.FileData) {
+func insertToDatabase(fileDataCh <-chan []models.FileData) {
+	db, err := database.GetInstance() // Get the singleton instance
+	if err != nil {
+		log.Fatalf("Database error: %v", err)
+	}
+
 	for files := range fileDataCh {
 		if err := db.InsertFiles(files); err != nil {
 			log.Printf("Error inserting files: %v", err)
-			// Consider adding better error handling here (e.g., retry)
+			// ... (error handling)
 		}
 	}
 }
