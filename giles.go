@@ -69,7 +69,7 @@ func scanFiles(dirPath, extFilter string, progressCh chan<- int, databaseCh chan
 		fileBuffer = append(fileBuffer, fileData)
 		if len(fileBuffer) >= 100 {
 			databaseCh <- fileBuffer
-			fileBuffer = nil // Reset the buffer after sending
+			fileBuffer = nil
 		}
 
 		processedFiles++
@@ -77,7 +77,6 @@ func scanFiles(dirPath, extFilter string, progressCh chan<- int, databaseCh chan
 		return nil
 	})
 
-	// Send any remaining files in the buffer
 	if len(fileBuffer) > 0 {
 		databaseCh <- fileBuffer
 	}
