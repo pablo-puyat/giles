@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"giles/models"
+	"log"
 	"sync"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -49,22 +50,17 @@ func (db *DB) InsertFiles(files []models.FileData) error {
 		return nil
 	}
 
-	// Start building the SQL query
-	query := "INSERT OR IGNORE INTO files(name, path, size) VALUES "
-
-	// Create a slice to hold the values for the placeholders
-	values := make([]interface{}, 0, len(files)*3)
-
-	// Add a placeholder for each file data
-	for _, file := range files {
-		query += "(?, ?, ?),"
-		values = append(values, file.Name, file.Path, file.Size)
+	stmt, err := db.Prepare("INSERT OR IGNORE INTO files(name, path, size) VALUES (?, ?, ?)")
+	if err != nil {
+		log.Printf("Error inserting preparing statement")
 	}
+	defer stmt.Close()
 
-	// Remove the trailing comma
-	query = query[:len(query)-1]
-
-	// Execute the query
-	_, err := db.Exec(query, values...)
-	return err
+	for _, file := range files {
+		_, err := stmt.Exec(file.Name, file.Path, file.Size)
+		if err != nil {
+			return err // Or log and continue with other files
+		}
+	}
+	return nil
 }
