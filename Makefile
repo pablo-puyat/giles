@@ -12,7 +12,7 @@ vet: fmt
 .PHONY:vet
 
 build: vet
-	go build giles.go
+	go build .
 .PHONY:build
 
 build-arm: vet
