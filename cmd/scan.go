@@ -1,54 +1,41 @@
 package cmd
 
 import (
-	"flag"
 	"fmt"
 	"giles/database"
 	"giles/models"
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	"github.com/spf13/cobra"
 )
 
-// scanCmd represents the scan command
 var scanCmd = &cobra.Command{
 	Use:   "scan",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
+	Short: "Scan files in a directory",
+	Long: `Recursively scan files in a directory and insert them into a database.
+The name, path and size are recorded.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+Usage: giles scan <directory>`,
+	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		blah()
+		dirPath := "." // Default to current directory
+		if len(args) > 0 {
+			dirPath = args[0]
+		}
+		blah(dirPath)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(scanCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// scanCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// scanCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
 const batchSize = 100
 
-func blah() {
-	dirPath := flag.String("dir", ".", "Directory to scan for duplicates")
-	extFilter := flag.String("ext", "", "File extension to filter (e.g., txt, jpg)")
-	flag.Parse()
+func blah(dirPath string) {
 
 	var wg sync.WaitGroup // for synchronization
 	wg.Add(1)
@@ -59,7 +46,7 @@ func blah() {
 		insertToDatabase(fileDataCh)
 	}()
 
-	scanFiles(*dirPath, *extFilter, fileDataCh)
+	scanFiles(dirPath, fileDataCh)
 
 	close(fileDataCh) // Signal that scanning is done
 	wg.Wait()         // Wait for inserts to complete
@@ -81,16 +68,13 @@ func insertToDatabase(fileDataCh <-chan []models.FileData) {
 	}
 }
 
-func scanFiles(dirPath, extFilter string, fileDataCh chan<- []models.FileData) {
+func scanFiles(dirPath string, fileDataCh chan<- []models.FileData) {
 	fileBuffer := make([]models.FileData, 0, batchSize)
 	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err // Handle errors immediately in the walk function
 		}
 		if !info.Mode().IsRegular() {
-			return nil
-		}
-		if extFilter != "" && !strings.HasSuffix(strings.ToLower(info.Name()), "."+extFilter) {
 			return nil
 		}
 
