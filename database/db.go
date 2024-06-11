@@ -64,3 +64,27 @@ func (db *DB) InsertFiles(files []models.FileData) error {
 	}
 	return nil
 }
+
+func (db *DB) GetFilesWithoutHash() ([]models.FileData, error) {
+	rows, err := db.Query("SELECT name, path, size FROM files WHERE hash IS NULL")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var files []models.FileData
+	for rows.Next() {
+		var file models.FileData
+		err := rows.Scan(&file.Name, &file.Path, &file.Size)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, file)
+	}
+	return files, nil
+}
+
+func (db *DB) UpdateFileHash(path string, hash string) error {
+	_, err := db.Exec("UPDATE files SET hash = ? WHERE path = ?", hash, path)
+	return err
+}

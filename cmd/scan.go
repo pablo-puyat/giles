@@ -21,11 +21,11 @@ The name, path and size are recorded.
 Usage: giles scan <directory>`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		dirPath := "." // Default to current directory
+		dirPath := "."
 		if len(args) > 0 {
 			dirPath = args[0]
 		}
-		blah(dirPath)
+		scanDirectory(dirPath)
 	},
 }
 
@@ -35,11 +35,11 @@ func init() {
 
 const batchSize = 100
 
-func blah(dirPath string) {
+func scanDirectory(dirPath string) {
 
-	var wg sync.WaitGroup // for synchronization
+	var wg sync.WaitGroup
 	wg.Add(1)
-	fileDataCh := make(chan []models.FileData, 10) // Buffer channel for better performance
+	fileDataCh := make(chan []models.FileData, 10)
 
 	go func() {
 		defer wg.Done()
@@ -48,14 +48,14 @@ func blah(dirPath string) {
 
 	scanFiles(dirPath, fileDataCh)
 
-	close(fileDataCh) // Signal that scanning is done
-	wg.Wait()         // Wait for inserts to complete
+	close(fileDataCh)
+	wg.Wait()
 
-	fmt.Println("\nScanning complete.") // Print a clean completion message
+	fmt.Println("\nScanning complete.")
 }
 
 func insertToDatabase(fileDataCh <-chan []models.FileData) {
-	db, err := database.GetInstance() // Get the singleton instance
+	db, err := database.GetInstance()
 	if err != nil {
 		log.Fatalf("Database error: %v", err)
 	}
@@ -63,7 +63,6 @@ func insertToDatabase(fileDataCh <-chan []models.FileData) {
 	for files := range fileDataCh {
 		if err := db.InsertFiles(files); err != nil {
 			log.Printf("Error inserting files: %v", err)
-			// ... (error handling)
 		}
 	}
 }
@@ -72,7 +71,7 @@ func scanFiles(dirPath string, fileDataCh chan<- []models.FileData) {
 	fileBuffer := make([]models.FileData, 0, batchSize)
 	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return err // Handle errors immediately in the walk function
+			return err
 		}
 		if !info.Mode().IsRegular() {
 			return nil
@@ -86,7 +85,7 @@ func scanFiles(dirPath string, fileDataCh chan<- []models.FileData) {
 
 		fileBuffer = append(fileBuffer, fileData)
 		if len(fileBuffer) == batchSize {
-			fileDataCh <- fileBuffer // Send a full batch
+			fileDataCh <- fileBuffer
 			fileBuffer = fileBuffer[:0]
 		}
 		return nil
@@ -97,6 +96,6 @@ func scanFiles(dirPath string, fileDataCh chan<- []models.FileData) {
 	}
 
 	if len(fileBuffer) > 0 {
-		fileDataCh <- fileBuffer // Send any remaining files
+		fileDataCh <- fileBuffer
 	}
 }
