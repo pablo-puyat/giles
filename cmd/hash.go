@@ -37,7 +37,9 @@ Usage: giles hash`,
 		tasksChannel := make(chan models.FileData)
 		var wg sync.WaitGroup
 
-		for i := 0; i < 7; i++ {
+		workers, err := cmd.Flags().GetInt("workers")
+
+		for i := 0; i < workers; i++ {
 			wg.Add(1)
 			go hash(tasksChannel, &wg)
 		}
@@ -52,6 +54,7 @@ Usage: giles hash`,
 
 func init() {
 	rootCmd.AddCommand(hashCmd)
+	hashCmd.Flags().IntP("workers", "w", 7, "Number of workers to use")
 }
 
 func hash(tasksChannel <-chan models.FileData, wg *sync.WaitGroup) {

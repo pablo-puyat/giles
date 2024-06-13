@@ -36,8 +36,8 @@ func init() {
 const batchSize = 100
 
 func scanDirectory(dirPath string) {
-
 	var wg sync.WaitGroup
+
 	wg.Add(1)
 	fileDataCh := make(chan []models.FileData, 10)
 
