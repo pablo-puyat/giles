@@ -62,7 +62,7 @@ func insertToDatabase(fileDataCh <-chan []models.FileData) {
 
 	for files := range fileDataCh {
 		if err := db.InsertFiles(files); err != nil {
-			log.Printf("Error inserting files: %v", err)
+			log.Printf("Error inserting files: \"%v\"", err)
 		}
 	}
 }
@@ -92,7 +92,7 @@ func scanFiles(dirPath string, fileDataCh chan<- []models.FileData) {
 	})
 
 	if err != nil {
-		log.Fatalf("Error during file walk: %v", err)
+		log.Fatalf("Error during file walk: \"%v\"", err)
 	}
 
 	if len(fileBuffer) > 0 {

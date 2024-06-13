@@ -61,24 +61,24 @@ func hash(tasksChannel <-chan models.FileData, wg *sync.WaitGroup) {
 	defer wg.Done()
 	db, err := database.GetInstance()
 	if err != nil {
-		log.Fatalf("Database error: %v", err)
+		log.Fatalf("Database error: \"%v\"", err)
 	}
 	for file := range tasksChannel {
 		f, err := os.Open(file.Path)
 		if err != nil {
-			log.Printf("Error opening file %s: %v", file.Path, err)
+			log.Printf("Error encoutered while opening file: \"%v\"", err)
 			continue
 		}
 		defer f.Close()
 
 		hashValue, err := calculateSHA256(f)
 		if err != nil {
-			log.Printf("Error hashing file %s: %v", file.Path, err)
+			log.Printf("Error encoutered while calculating has: \"%v\"", err)
 			continue
 		}
 
 		if err := db.UpdateFileHash(file.Path, hashValue); err != nil {
-			log.Printf("Error updating hash for %s: %v", file.Path, err)
+			log.Printf("Error inserting hash \"%v\"", err)
 		}
 	}
 }
