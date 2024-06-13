@@ -70,7 +70,12 @@ func (db *DB) GetFilesWithoutHash() (files []models.FileData, err error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Fatalf("Error closing rows: %v", err)
+		}
+	}(rows)
 
 	for rows.Next() {
 		var file models.FileData
