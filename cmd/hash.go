@@ -10,6 +10,14 @@ import (
 	"log"
 	"os"
 	"sync"
+	"sync/atomic"
+)
+
+var (
+	hashedFiles       atomic.Uint64
+	progressChan      = make(chan uint64)
+	completedFiles    = make(chan models.FileData, 100)
+	hashesToCalculate = 0
 )
 
 var hashCmd = &cobra.Command{
@@ -26,29 +34,43 @@ Usage: giles hash`,
 		}
 
 		files, err := db.GetFilesWithoutHash()
+
 		if err != nil {
 			log.Fatalf("Database error: %v", err)
 		}
-		if len(files) == 0 {
+
+		hashesToCalculate = len(files)
+		if hashesToCalculate == 0 {
 			fmt.Printf("No files to hash\n")
 			return
 		}
-		fmt.Printf("Hashing %d files\n", len(files))
-		tasksChannel := make(chan models.FileData)
+
+		fileChannel := make(chan models.FileData)
 		var wg sync.WaitGroup
 
 		workers, err := cmd.Flags().GetInt("workers")
 
+		go func() {
+			for count := range progressChan {
+				fmt.Printf("\rHashed %d of %d files", count, hashesToCalculate)
+			}
+		}()
+
 		for i := 0; i < workers; i++ {
 			wg.Add(1)
-			go hash(tasksChannel, &wg)
+			go hash(fileChannel, &wg)
 		}
 
+		go updateHashes(completedFiles)
+
 		for _, file := range files {
-			tasksChannel <- file
+			fileChannel <- file
 		}
-		close(tasksChannel)
+
+		close(fileChannel)
 		wg.Wait()
+		close(progressChan)
+		close(completedFiles)
 	},
 }
 
@@ -59,10 +81,6 @@ func init() {
 
 func hash(tasksChannel <-chan models.FileData, wg *sync.WaitGroup) {
 	defer wg.Done()
-	db, err := database.GetInstance()
-	if err != nil {
-		log.Fatalf("Database error: \"%v\"", err)
-	}
 	for file := range tasksChannel {
 		f, err := os.Open(file.Path)
 		if err != nil {
@@ -76,9 +94,36 @@ func hash(tasksChannel <-chan models.FileData, wg *sync.WaitGroup) {
 			log.Printf("Error encoutered while calculating has: \"%v\"", err)
 			continue
 		}
+		file.Hash = hashValue
+		completedFiles <- file
 
-		if err := db.UpdateFileHash(file.Path, hashValue); err != nil {
-			log.Printf("Error inserting hash \"%v\"", err)
+		count := hashedFiles.Add(1)
+		progressChan <- count
+	}
+}
+
+func updateHashes(hashedFilesChannel <-chan models.FileData) {
+	db, err := database.GetInstance()
+	if err != nil {
+		log.Fatalf("Database error: \"%v\"", err)
+	}
+
+	batch := make([]models.FileData, 0, 100)
+	for file := range hashedFilesChannel {
+		batch = append(batch, file)
+
+		if len(batch) == 100 {
+			if err := db.UpdateFileHashBatch(batch); err != nil {
+				log.Printf("Error updating hashes \"%v\"", err)
+			}
+			batch = batch[:0] // clear the batch
+		}
+	}
+
+	// handle any remaining files in the batch
+	if len(batch) > 0 {
+		if err := db.UpdateFileHashBatch(batch); err != nil {
+			log.Printf("Error updating hashes \"%v\"", err)
 		}
 	}
 }

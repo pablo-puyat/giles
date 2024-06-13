@@ -92,3 +92,25 @@ func (db *DB) UpdateFileHash(path string, hash string) error {
 	_, err := db.Exec("UPDATE files SET hash = ? WHERE path = ?", hash, path)
 	return err
 }
+
+func (db *DB) UpdateFileHashBatch(files []models.FileData) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+
+	stmt, err := tx.Prepare("UPDATE files SET hash = ? WHERE path = ?")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for _, file := range files {
+		_, err := stmt.Exec(file.Hash, file.Path)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
