@@ -87,13 +87,18 @@ func hash(tasksChannel <-chan models.FileData, wg *sync.WaitGroup) {
 			log.Printf("Error encoutered while opening file: \"%v\"", err)
 			continue
 		}
-		defer f.Close()
-
 		hashValue, err := calculateSHA256(f)
 		if err != nil {
-			log.Printf("Error encoutered while calculating has: \"%v\"", err)
+			log.Printf("Error encoutered while calculating hash: \"%v\"", err)
 			continue
 		}
+
+		err = f.Close()
+		if err != nil {
+			log.Printf("Error encoutered: \"%v\"", err)
+			return
+		}
+
 		file.Hash = hashValue
 		completedFiles <- file
 
