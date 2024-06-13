@@ -4,10 +4,12 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"giles/database"
+	"giles/models"
 	"github.com/spf13/cobra"
 	"io"
 	"log"
 	"os"
+	"sync"
 )
 
 var hashCmd = &cobra.Command{
@@ -18,7 +20,33 @@ var hashCmd = &cobra.Command{
 Usage: giles hash`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		findHashes()
+		db, err := database.GetInstance()
+		if err != nil {
+			log.Fatalf("Database error: %v", err)
+		}
+
+		files, err := db.GetFilesWithoutHash()
+		if err != nil {
+			log.Fatalf("Database error: %v", err)
+		}
+		if len(files) == 0 {
+			fmt.Printf("No files to hash\n")
+			return
+		}
+		fmt.Printf("Hashing %d files\n", len(files))
+		tasksChannel := make(chan models.FileData)
+		var wg sync.WaitGroup
+
+		for i := 0; i < 7; i++ {
+			wg.Add(1)
+			go hash(tasksChannel, &wg)
+		}
+
+		for _, file := range files {
+			tasksChannel <- file
+		}
+		close(tasksChannel)
+		wg.Wait()
 	},
 }
 
@@ -26,39 +54,35 @@ func init() {
 	rootCmd.AddCommand(hashCmd)
 }
 
-func findHashes() {
+func hash(tasksChannel <-chan models.FileData, wg *sync.WaitGroup) {
+	defer wg.Done()
 	db, err := database.GetInstance()
 	if err != nil {
 		log.Fatalf("Database error: %v", err)
 	}
-
-	files, err := db.GetFilesWithoutHash()
-	if err != nil {
-		log.Fatalf("Database error: %v", err)
-	}
-
-	for _, file := range files {
-		hash, err := hash(file.Path)
+	for file := range tasksChannel {
+		f, err := os.Open(file.Path)
 		if err != nil {
-			log.Printf("Error hashing %s: %v", file.Path, err)
+			log.Printf("Error opening file %s: %v", file.Path, err)
 			continue
 		}
-		err = db.UpdateFileHash(file.Path, hash)
+		defer f.Close()
+
+		hashValue, err := calculateSHA256(f)
 		if err != nil {
+			log.Printf("Error hashing file %s: %v", file.Path, err)
+			continue
+		}
+
+		if err := db.UpdateFileHash(file.Path, hashValue); err != nil {
 			log.Printf("Error updating hash for %s: %v", file.Path, err)
 		}
 	}
 }
 
-func hash(filePath string) (string, error) {
-	f, err := os.Open(filePath)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
+func calculateSHA256(reader io.Reader) (string, error) {
 	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
+	if _, err := io.Copy(h, reader); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
