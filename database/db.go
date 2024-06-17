@@ -16,7 +16,7 @@ var (
 )
 
 type DB struct {
-	*sql.DB // Embed the *sql.DB to get its methods
+	*sql.DB
 }
 
 func GetInstance() (*DB, error) {
@@ -27,7 +27,7 @@ func GetInstance() (*DB, error) {
 			panic(fmt.Errorf("error opening database: %v", err))
 		}
 
-		dbInstance = &DB{sqlDB} // Correctly assign the *sql.DB to the embedded field
+		dbInstance = &DB{sqlDB}
 
 		createTables(sqlDB)
 	})
@@ -48,7 +48,7 @@ func (db *DB) InsertFiles(files []models.FileData) error {
 	for _, file := range files {
 		_, err := stmt.Exec(file.Name, file.Path, file.Size)
 		if err != nil {
-			return err // Or log and continue with other files
+			return err
 		}
 	}
 	return nil
