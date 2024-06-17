@@ -76,7 +76,7 @@ Usage: giles hash`,
 
 func init() {
 	rootCmd.AddCommand(hashCmd)
-	hashCmd.Flags().IntP("workers", "w", 7, "Number of workers to use")
+	hashCmd.Flags().IntP("workers", "w", 1, "Number of workers to use")
 }
 
 func hash(tasksChannel <-chan models.FileData, wg *sync.WaitGroup) {
@@ -121,11 +121,10 @@ func updateHashes(hashedFilesChannel <-chan models.FileData) {
 			if err := db.UpdateFileHashBatch(batch); err != nil {
 				log.Printf("Error updating hashes \"%v\"", err)
 			}
-			batch = batch[:0] // clear the batch
+			batch = batch[:0]
 		}
 	}
 
-	// handle any remaining files in the batch
 	if len(batch) > 0 {
 		if err := db.UpdateFileHashBatch(batch); err != nil {
 			log.Printf("Error updating hashes \"%v\"", err)

@@ -148,15 +148,24 @@ func createTables(db *sql.DB) {
 		panic(fmt.Errorf("error creating table: %v", err))
 	}
 
-	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS files_file_types (
-			file_id INTEGER,
-			type_id INTEGER,
-			PRIMARY KEY (file_id, type_id),
-			FOREIGN KEY (file_id) REFERENCES files(id),
-			FOREIGN KEY (type_id) REFERENCES file_types(id)
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS file_extensions_file_types (
+			file_extension TEXT,
+			file_type_id TEXT UNIQUE,
+			PRIMARY KEY (file_extension, file_type_id),
+			FOREIGN KEY (file_type_id) REFERENCES file_types(id)
 		)`)
 	if err != nil {
 		panic(fmt.Errorf("error creating table: %v", err))
 	}
 
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS files_file_types (
+			file_id INTEGER,
+			file_type_id INTEGER,
+			PRIMARY KEY (file_id, file_type_id),
+			FOREIGN KEY (file_id) REFERENCES files(id),
+			FOREIGN KEY (file_type_id) REFERENCES file_types(id)
+		)`)
+	if err != nil {
+		panic(fmt.Errorf("error creating table: %v", err))
+	}
 }
