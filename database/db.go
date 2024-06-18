@@ -55,6 +55,32 @@ func (db *DB) InsertFiles(files []models.FileData) error {
 }
 
 func (db *DB) GetFilesWithoutHash() (files []models.FileData, err error) {
+	rows, err := db.Query("SELECT files.name, files.path, files.size " +
+		"FROM files " +
+		"LEFT JOIN files_hashes ON files.id = files_hashes.file_id " +
+		"WHERE files_hashes.file_id IS NULL")
+	if err != nil {
+		return nil, err
+	}
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Fatalf("Error closing rows: %v", err)
+		}
+	}(rows)
+
+	for rows.Next() {
+		var file models.FileData
+		err := rows.Scan(&file.Name, &file.Path, &file.Size)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, file)
+	}
+	return
+}
+
+func (db *DB) GetDuplicates() (files []models.FileData, err error) {
 	rows, err := db.Query("SELECT files.name, files.path, files.size" +
 		"FROM files" +
 		"LEFT JOIN files_hashes ON files.id = files_hashes.file_id" +

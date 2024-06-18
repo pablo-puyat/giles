@@ -30,13 +30,13 @@ Usage: giles hash`,
 	Run: func(cmd *cobra.Command, args []string) {
 		db, err := database.GetInstance()
 		if err != nil {
-			log.Fatalf("Database error: %v", err)
+			log.Fatalf("Error connecting to database: %v", err)
 		}
 
 		files, err := db.GetFilesWithoutHash()
 
 		if err != nil {
-			log.Fatalf("Database error: %v", err)
+			log.Fatalf("Error encoutered while getting duplicates: %v", err)
 		}
 
 		hashesToCalculate = len(files)
@@ -110,7 +110,7 @@ func hash(tasksChannel <-chan models.FileData, wg *sync.WaitGroup) {
 func updateHashes(hashedFilesChannel <-chan models.FileData) {
 	db, err := database.GetInstance()
 	if err != nil {
-		log.Fatalf("Database error: \"%v\"", err)
+		log.Fatalf("Error connecting to database: \"%v\"", err)
 	}
 
 	batch := make([]models.FileData, 0, 100)

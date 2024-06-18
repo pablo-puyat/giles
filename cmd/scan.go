@@ -71,10 +71,7 @@ func scanFiles(dirPath string, fileDataCh chan<- []models.FileData) {
 	fileBuffer := make([]models.FileData, 0, batchSize)
 	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return err
-		}
-		if !info.Mode().IsRegular() {
-			return nil
+			log.Printf("Error walking path: \"%v\"", err)
 		}
 
 		fileData := models.FileData{
@@ -92,7 +89,7 @@ func scanFiles(dirPath string, fileDataCh chan<- []models.FileData) {
 	})
 
 	if err != nil {
-		log.Fatalf("Error during file walk: \"%v\"", err)
+		log.Printf("Error during file walk: \"%v\"", err)
 	}
 
 	if len(fileBuffer) > 0 {
