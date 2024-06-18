@@ -22,7 +22,7 @@ type DB struct {
 func GetInstance() (*DB, error) {
 	dbOnce.Do(func() {
 		var err error
-		sqlDB, err := sql.Open("sqlite3", "./giles.sqlite3")
+		sqlDB, err := sql.Open("sqlite3", "./giles.db")
 		if err != nil {
 			panic(fmt.Errorf("error opening database: %v", err))
 		}
