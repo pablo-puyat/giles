@@ -28,7 +28,7 @@ Usage: giles scan <directory>`,
 			dirPath = args[0]
 		}
 
-		processDir(dirPath)
+		scanDir(dirPath)
 		fmt.Println("Scan complete")
 	},
 }
@@ -37,7 +37,7 @@ func init() {
 	rootCmd.AddCommand(scanCmd)
 }
 
-func processDir(path string) {
+func scanDir(path string) {
 	db, err := sql.Open("sqlite3", "./giles.db")
 	if err != nil {
 		panic(fmt.Errorf("error opening database: %v", err))
@@ -48,6 +48,9 @@ func processDir(path string) {
 			log.Printf("Error walking path: \"%v\"", err)
 		}
 
+		if info.IsDir() {
+			return nil
+		}
 		fileData := models.FileData{
 			Name: info.Name(),
 			Path: path,

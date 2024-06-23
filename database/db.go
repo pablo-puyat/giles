@@ -15,7 +15,6 @@ const (
 
 func GetFilesWithoutHash(db *sql.DB) (files []models.FileData, err error) {
 	rows, err := db.Query(FilesWithoutHashSql)
-
 	if err != nil {
 		return nil, err
 	}
@@ -23,7 +22,7 @@ func GetFilesWithoutHash(db *sql.DB) (files []models.FileData, err error) {
 
 	for rows.Next() {
 		var file models.FileData
-		err := rows.Scan(&file.Id, &file.Name)
+		err := rows.Scan(&file.Id, &file.Name, &file.Path, &file.Size)
 		if err != nil {
 			return nil, err
 		}
