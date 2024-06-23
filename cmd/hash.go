@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"crypto/sha256"
+	"database/sql"
 	"fmt"
 	"giles/database"
 	"giles/models"
@@ -9,15 +10,8 @@ import (
 	"io"
 	"log"
 	"os"
-	"sync"
-	"sync/atomic"
-)
 
-var (
-	hashedFiles       atomic.Uint64
-	progressChan      = make(chan uint64)
-	completedFiles    = make(chan models.FileData, 100)
-	hashesToCalculate = 0
+	_ "github.com/mattn/go-sqlite3"
 )
 
 var hashCmd = &cobra.Command{
@@ -28,49 +22,29 @@ var hashCmd = &cobra.Command{
 Usage: giles hash`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		db, err := database.GetInstance()
+		db, err := sql.Open("sqlite3", "./giles.db")
 		if err != nil {
-			log.Fatalf("Error connecting to database: %v", err)
+			panic(fmt.Errorf("error opening database: %v", err))
 		}
-
-		files, err := db.GetFilesWithoutHash()
-
-		if err != nil {
-			log.Fatalf("Error encoutered while getting duplicates: %v", err)
-		}
-
-		hashesToCalculate = len(files)
-		if hashesToCalculate == 0 {
-			fmt.Printf("No files to hash\n")
-			return
-		}
-
-		fileChannel := make(chan models.FileData)
-		var wg sync.WaitGroup
-
-		workers, err := cmd.Flags().GetInt("workers")
-
-		go func() {
-			for count := range progressChan {
-				fmt.Printf("\rHashed %d of %d files", count, hashesToCalculate)
+		gen := func() <-chan models.FileData {
+			r, err := database.GetFilesWithoutHash(db)
+			if err != nil {
+				log.Print("No files to hash")
+				return nil
 			}
+
+			out := make(chan models.FileData)
+			go func() {
+				for _, i := range r {
+					out <- i
+				}
+				close(out)
+			}()
+			return out
 		}()
-
-		for i := 0; i < workers; i++ {
-			wg.Add(1)
-			go hash(fileChannel, &wg)
-		}
-
-		go updateHashes(completedFiles)
-
-		for _, file := range files {
-			fileChannel <- file
-		}
-
-		close(fileChannel)
-		wg.Wait()
-		close(progressChan)
-		close(completedFiles)
+		h := transform(gen, calculateSHA256, db)
+		sqr := transform(h, database.InsertHash, db)
+		transform(sqr, database.InsertFileIdHashId, db)
 	},
 }
 
@@ -79,63 +53,29 @@ func init() {
 	hashCmd.Flags().IntP("workers", "w", 1, "Number of workers to use")
 }
 
-func hash(tasksChannel <-chan models.FileData, wg *sync.WaitGroup) {
-	defer wg.Done()
-	for file := range tasksChannel {
-		f, err := os.Open(file.Path)
-		if err != nil {
-			log.Printf("Error encoutered while opening file: \"%v\"", err)
-			continue
-		}
-		hashValue, err := calculateSHA256(f)
-		if err != nil {
-			log.Printf("Error encoutered while calculating hash: \"%v\"", err)
-			continue
-		}
-
-		err = f.Close()
-		if err != nil {
-			log.Printf("Error encoutered: \"%v\"", err)
-			return
-		}
-
-		file.Hash = hashValue
-		completedFiles <- file
-
-		count := hashedFiles.Add(1)
-		progressChan <- count
-	}
-}
-
-func updateHashes(hashedFilesChannel <-chan models.FileData) {
-	db, err := database.GetInstance()
+func calculateSHA256(db *sql.DB, file models.FileData) models.FileData {
+	f, err := os.Open(file.Path)
 	if err != nil {
-		log.Fatalf("Error connecting to database: \"%v\"", err)
+		log.Printf("Error encoutered while opening file: \"%v\"", err)
 	}
+	defer f.Close()
 
-	batch := make([]models.FileData, 0, 100)
-	for file := range hashedFilesChannel {
-		batch = append(batch, file)
-
-		if len(batch) == 100 {
-			if err := db.UpdateFileHashBatch(batch); err != nil {
-				log.Printf("Error updating hashes \"%v\"", err)
-			}
-			batch = batch[:0]
-		}
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		log.Printf("Error encoutered while hashing file: \"%v\"", err)
 	}
-
-	if len(batch) > 0 {
-		if err := db.UpdateFileHashBatch(batch); err != nil {
-			log.Printf("Error updating hashes \"%v\"", err)
-		}
-	}
+	hash := fmt.Sprintf("%x", h.Sum(nil))
+	file.Hash = hash
+	return file
 }
 
-func calculateSHA256(reader io.Reader) (string, error) {
-	h := sha256.New()
-	if _, err := io.Copy(h, reader); err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%x", h.Sum(nil)), nil
+func transform(in <-chan models.FileData, transformer func(*sql.DB, models.FileData) models.FileData, db *sql.DB) <-chan models.FileData {
+	out := make(chan models.FileData)
+	go func() {
+		for file := range in {
+			out <- transformer(db, file)
+		}
+		close(out)
+	}()
+	return out
 }

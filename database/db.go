@@ -33,21 +33,24 @@ func GetFilesWithoutHash(db *sql.DB) (files []models.FileData, err error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return files, err
 }
 
-func InsertHash(db *sql.DB, hash string) (hashId int64, err error) {
-	result, err := db.Exec(InsertHashSql, hash)
+func InsertHash(db *sql.DB, file models.FileData) models.FileData {
+	result, err := db.Exec(InsertHashSql, file.Hash)
+
+	hashId, err := result.LastInsertId()
 	if err != nil {
-		return 0, err
+		return models.FileData{}
 	}
-	return result.LastInsertId()
+	file.HashId = hashId
+	return file
 }
 
-func InsertFileIdHashId(db *sql.DB, fileId int64, hashId int64) {
-	_, err := db.Exec(InsertFileIdHashIdSql, fileId, hashId)
+func InsertFileIdHashId(db *sql.DB, file models.FileData) models.FileData {
+	_, err := db.Exec(InsertFileIdHashIdSql, file.Id, file.HashId)
 	if err != nil {
 		log.Printf("Error inserting file: %v", err)
 	}
+	return file
 }

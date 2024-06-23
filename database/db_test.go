@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"giles/models"
 	"github.com/DATA-DOG/go-sqlmock"
 	"testing"
 )
@@ -47,16 +48,14 @@ func Test_InsertHash(t *testing.T) {
 		}
 	}(db)
 
-	var expect int64 = 1
+	var hashId int64 = 1
+	expect := models.FileData{HashId: hashId}
 	mock.ExpectExec("^INSERT").
 		WithArgs("test-hash").
-		WillReturnResult(sqlmock.NewResult(expect, 1))
+		WillReturnResult(sqlmock.NewResult(hashId, 1))
 
-	want, err := InsertHash(db, "test-hash")
-	if err != nil {
-		t.Fatalf("Error encoutered while saving hash: %v", err)
-	}
-	if want != expect {
+	want := InsertHash(db, models.FileData{Hash: "test-hash"})
+	if want.HashId != expect.HashId {
 		t.Fatalf("Incorrect id returned: %v", err)
 	}
 }
@@ -77,5 +76,5 @@ func Test_InsertFileIdHashId(t *testing.T) {
 		WithArgs(123, 123).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	InsertFileIdHashId(db, 123, 123)
+	InsertFileIdHashId(db, models.FileData{Id: 123, HashId: 123})
 }
