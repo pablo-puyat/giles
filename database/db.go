@@ -8,8 +8,9 @@ import (
 
 const (
 	FilesWithoutHashSql   = "SELECT id, files.name, files.path, files.size FROM files LEFT JOIN files_hashes ON files.id = files_hashes.file_id WHERE files_hashes.file_id IS NULL"
+	InserFileSql          = "INSERT INTO files (name, path, size) VALUES (?, ?, ?)"
+	InsertFileIdHashIdSql = "INSERT INTO files_hashes (file_id, hash_id) VALUES (?, ?)"
 	InsertHashSql         = "INSERT INTO hashes (hash) VALUES (1)"
-	InsertFileIdHashIdSql = "INSERT INTO files (name, path, size) VALUES (?, ?, ?)"
 )
 
 func GetFilesWithoutHash(db *sql.DB) (files []models.FileData, err error) {
@@ -36,14 +37,11 @@ func GetFilesWithoutHash(db *sql.DB) (files []models.FileData, err error) {
 	return files, err
 }
 
-func InsertHash(db *sql.DB, file models.FileData) models.FileData {
-	result, err := db.Exec(InsertHashSql, file.Hash)
-
-	hashId, err := result.LastInsertId()
+func InsertFile(db *sql.DB, file models.FileData) models.FileData {
+	_, err := db.Exec(InserFileSql, file.Name, file.Path, file.Size)
 	if err != nil {
-		return models.FileData{}
+		log.Printf("Error inserting file: %v", err)
 	}
-	file.HashId = hashId
 	return file
 }
 
@@ -52,5 +50,16 @@ func InsertFileIdHashId(db *sql.DB, file models.FileData) models.FileData {
 	if err != nil {
 		log.Printf("Error inserting file: %v", err)
 	}
+	return file
+}
+
+func InsertHash(db *sql.DB, file models.FileData) models.FileData {
+	result, err := db.Exec(InsertHashSql, file.Hash)
+
+	hashId, err := result.LastInsertId()
+	if err != nil {
+		return models.FileData{}
+	}
+	file.HashId = hashId
 	return file
 }

@@ -7,6 +7,34 @@ import (
 	"testing"
 )
 
+func Test_InsertFile(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+
+		}
+	}(db)
+
+	mock.ExpectExec("^INSERT").
+		WithArgs("test.txt", "test-path", 123).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	want := InsertFile(db, models.FileData{Name: "test.txt", Path: "test-path", Size: 123})
+	if want.Name != "test.txt" {
+		t.Fatalf("Incorrect name returned: %v", err)
+	}
+	if want.Path != "test-path" {
+		t.Fatalf("Incorrect path returned: %v", err)
+	}
+	if want.Size != 123 {
+		t.Fatalf("Incorrect size returned: %v", err)
+	}
+}
+
 func Test_GetFilesWithoutHash(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
