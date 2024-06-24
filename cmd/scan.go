@@ -22,12 +22,10 @@ The name, path and size are recorded.
 Usage: giles scan <directory>`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-
 		dirPath := "."
 		if len(args) > 0 {
 			dirPath = args[0]
 		}
-
 		scanDir(dirPath)
 		fmt.Println("Scan complete")
 	},

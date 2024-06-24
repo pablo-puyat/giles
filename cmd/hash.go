@@ -6,12 +6,11 @@ import (
 	"fmt"
 	"giles/database"
 	"giles/models"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/cobra"
 	"io"
 	"log"
 	"os"
-
-	_ "github.com/mattn/go-sqlite3"
 )
 
 var hashCmd = &cobra.Command{
@@ -26,25 +25,29 @@ Usage: giles hash`,
 		if err != nil {
 			panic(fmt.Errorf("error opening database: %v", err))
 		}
-		gen := func() <-chan models.FileData {
-			r, err := database.GetFilesWithoutHash(db)
-			if err != nil {
-				log.Print("No files to hash")
-				return nil
-			}
+		files, err := database.GetFilesWithoutHash(db)
+		if err != nil {
+			log.Printf("Error with query: %v", err)
+			return
+		}
 
-			out := make(chan models.FileData)
-			go func() {
-				for _, i := range r {
-					out <- i
-				}
-				close(out)
-			}()
-			return out
+		c1 := make(chan models.FileData)
+		c2 := transform(c1, insertHash, db)
+		c3 := transform(c2, database.InsertFileIdHashId, db)
+
+		go func() {
+			for result := range c3 {
+				fmt.Printf("final --- %d\n", result.Id)
+				println("Channel closed")
+			}
 		}()
-		h := transform(gen, calculateSHA256, db)
-		sqr := transform(h, database.InsertHash, db)
-		transform(sqr, database.InsertFileIdHashId, db)
+
+		for _, i := range files {
+			c1 <- i
+		}
+		close(c1)
+
+		print("\rDone. \n\nProecessed ", len(files), " files\n")
 	},
 }
 
@@ -53,8 +56,27 @@ func init() {
 	hashCmd.Flags().IntP("workers", "w", 1, "Number of workers to use")
 }
 
-func calculateSHA256(db *sql.DB, file models.FileData) models.FileData {
-	f, err := os.Open(file.Path)
+func insertHash(db *sql.DB, file models.FileData) models.FileData {
+	file.Hash = calcHash(file.Path)
+	hashId := database.InsertHash(db, file)
+	file.HashId = hashId.HashId
+	return file
+}
+
+func transform(in <-chan models.FileData, transformer func(*sql.DB, models.FileData) models.FileData, db *sql.DB) <-chan models.FileData {
+	out := make(chan models.FileData)
+	go func() {
+		for file := range in {
+			fmt.Printf("transform --- %d\n", file.Id)
+			out <- transformer(db, file)
+		}
+		close(out)
+	}()
+	return out
+}
+
+func calcHash(path string) (hash string) {
+	f, err := os.Open(path)
 	if err != nil {
 		log.Printf("Error encoutered while opening file: \"%v\"", err)
 	}
@@ -64,18 +86,6 @@ func calculateSHA256(db *sql.DB, file models.FileData) models.FileData {
 	if _, err := io.Copy(h, f); err != nil {
 		log.Printf("Error encoutered while hashing file: \"%v\"", err)
 	}
-	hash := fmt.Sprintf("%x", h.Sum(nil))
-	file.Hash = hash
-	return file
-}
-
-func transform(in <-chan models.FileData, transformer func(*sql.DB, models.FileData) models.FileData, db *sql.DB) <-chan models.FileData {
-	out := make(chan models.FileData)
-	go func() {
-		for file := range in {
-			out <- transformer(db, file)
-		}
-		close(out)
-	}()
-	return out
+	hash = fmt.Sprintf("%x", h.Sum(nil))
+	return
 }

@@ -47,7 +47,7 @@ func Test_GetFilesWithoutHash(t *testing.T) {
 		}
 	}(db)
 
-	expectedRows := sqlmock.NewRows([]string{"id", "name"}).AddRow(1, "test.txt")
+	expectedRows := sqlmock.NewRows([]string{"id", "path"}).AddRow(1, "somepath")
 	mock.ExpectQuery(FilesWithoutHashSql).WillReturnRows(expectedRows)
 
 	want, err := GetFilesWithoutHash(db)
