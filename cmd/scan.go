@@ -34,7 +34,7 @@ func init() {
 
 func scanDir(path string) {
 	dbManager := database.NewDataStore()
-	filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			log.Printf("Error walking path: \"%v\"", err)
 		}
@@ -55,4 +55,7 @@ func scanDir(path string) {
 
 		return nil
 	})
+	if err != nil {
+		log.Fatalf("Error scanning directory: %v", err)
+	}
 }
