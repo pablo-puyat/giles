@@ -20,32 +20,33 @@ var hashCmd = &cobra.Command{
 Usage: giles hash`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		dbManager := database.NewDBManager()
+		dbManager := database.NewDataStore()
 		files, err := dbManager.GetFilesWithoutHash()
 		if err != nil {
 			log.Printf("Error with query: %v", err)
 			return
 		}
 
-		c1 := make(chan models.FileData)
+		c1 := make(chan TransformResult)
 		c2 := transform(c1, func(file models.FileData) (models.FileData, error) {
 			return insertHash(dbManager, file)
 		})
 		c3 := transform(c2, dbManager.InsertFileIdHashId)
 
 		go func() {
-			for result := range c3 {
-				fmt.Printf("final --- %d\n", result.Id)
-				println("Channel closed")
+			for r := range c3 {
+				if r.Err != nil {
+					fmt.Printf("final --- %v\n", r.Err)
+				}
 			}
 		}()
 
-		for _, i := range files {
-			c1 <- i
+		for _, f := range files {
+			c1 <- TransformResult{File: f}
 		}
 		close(c1)
 
-		print("\rDone. \n\nProecessed ", len(files), " files\n")
+		print("\rDone. \n\nProcessed ", len(files), " files\n")
 	},
 }
 
@@ -54,7 +55,7 @@ func init() {
 	hashCmd.Flags().IntP("workers", "w", 1, "Number of workers to use")
 }
 
-func insertHash(dbManager *database.DBManager, file models.FileData) (models.FileData, error) {
+func insertHash(dbManager *database.DataStore, file models.FileData) (models.FileData, error) {
 	var hash string
 	hash, err := calcHash(file.Path)
 	if err != nil {
@@ -69,17 +70,16 @@ func insertHash(dbManager *database.DBManager, file models.FileData) (models.Fil
 	return file, nil
 }
 
-func transform(in <-chan models.FileData, transformer func(models.FileData) (models.FileData, error)) <-chan models.FileData {
-	out := make(chan models.FileData)
+func transform(in <-chan TransformResult, transformer func(models.FileData) (models.FileData, error)) <-chan TransformResult {
+	out := make(chan TransformResult)
 	go func() {
-		for file := range in {
-			fmt.Printf("transform --- %d\n", file.Id)
-			file, err := transformer(file)
-			if err != nil {
-				log.Printf("Error transforming file: %v", err)
-				continue
+		for tr := range in {
+			if tr.Err != nil {
+				out <- tr
+			} else {
+				file, err := transformer(tr.File)
+				out <- TransformResult{File: file, Err: err}
 			}
-			out <- file
 		}
 		close(out)
 	}()
@@ -89,15 +89,20 @@ func transform(in <-chan models.FileData, transformer func(models.FileData) (mod
 func calcHash(path string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		log.Printf("Error encoutered while opening file: \"%v\"", err)
+		log.Fatalf("Error encoutered while opening file: \"%v\"", err)
 	}
 	defer f.Close()
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
-		log.Printf("Error encoutered while hashing file: \"%v\"", err)
+		log.Fatalf("Error encoutered while hashing file: \"%v\"", err)
 	}
 	hash := fmt.Sprintf("%x", h.Sum(nil))
 
 	return hash, err
+}
+
+type TransformResult struct {
+	File models.FileData
+	Err  error
 }

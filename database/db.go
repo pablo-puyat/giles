@@ -16,28 +16,28 @@ const (
 )
 
 var (
-	instance *DBManager
+	instance *DataStore
 	once     sync.Once
 )
 
-type DBManager struct {
-	Db *sql.DB
+type DataStore struct {
+	DB *sql.DB
 }
 
-func NewDBManager() *DBManager {
+func NewDataStore() *DataStore {
 	once.Do(func() {
 		db, err := sql.Open("sqlite3", "./giles.db")
 		if err != nil {
 			panic(fmt.Errorf("error opening database: %v", err))
 		}
 		createTables(db)
-		instance = &DBManager{Db: db}
+		instance = &DataStore{DB: db}
 	})
 	return instance
 }
 
-func (dbm *DBManager) GetFilesWithoutHash() (files []models.FileData, err error) {
-	rows, err := dbm.Db.Query(FilesWithoutHashSql)
+func (ds *DataStore) GetFilesWithoutHash() (files []models.FileData, err error) {
+	rows, err := ds.DB.Query(FilesWithoutHashSql)
 	if err != nil {
 		return nil, err
 	}
@@ -59,33 +59,33 @@ func (dbm *DBManager) GetFilesWithoutHash() (files []models.FileData, err error)
 	return files, err
 }
 
-func (dbm *DBManager) InsertFile(file models.FileData) (models.FileData, error) {
-	_, err := dbm.Db.Exec(InserFileSql, file.Name, file.Path, file.Size)
+func (ds *DataStore) InsertFile(file models.FileData) (models.FileData, error) {
+	_, err := ds.DB.Exec(InserFileSql, file.Name, file.Path, file.Size)
 	if err != nil {
 		log.Printf("Error inserting file: %v", err)
 	}
 	return file, err
 }
 
-func (dbm *DBManager) InsertFileIdHashId(file models.FileData) (models.FileData, error) {
-	_, err := dbm.Db.Exec(InsertFileIdHashIdSql, file.Id, file.HashId)
+func (ds *DataStore) InsertFileIdHashId(file models.FileData) (models.FileData, error) {
+	_, err := ds.DB.Exec(InsertFileIdHashIdSql, file.Id, file.HashId)
 	if err != nil {
 		log.Printf("Error inserting file: %v", err)
 	}
 	return file, err
 }
 
-func (dbm *DBManager) InsertHash(file models.FileData) (models.FileData, error) {
-	result, err := dbm.Db.Exec(InsertHashSql, file.Hash)
+func (ds *DataStore) InsertHash(file models.FileData) (models.FileData, error) {
+	result, err := ds.DB.Exec(InsertHashSql, file.Hash)
 	if err != nil {
 		log.Fatalf("Error inserting hash: %v", err)
 	}
-	ra, err := result.LastInsertId()
+	l, err := result.LastInsertId()
 	if err != nil {
 		log.Fatalf("Error inserting hash: %v", err)
 	}
-	if ra == 0 {
-		rows, err := dbm.Db.Query("SELECT id FROM hashes WHERE hash = ?", file.Hash)
+	if l == 0 {
+		rows, err := ds.DB.Query("SELECT id FROM hashes WHERE hash = ?", file.Hash)
 		if err != nil {
 			log.Fatalf("Error querying hash: %v", err)
 		}
@@ -97,7 +97,7 @@ func (dbm *DBManager) InsertHash(file models.FileData) (models.FileData, error) 
 			}
 		}
 	} else {
-		file.HashId = ra
+		file.HashId = l
 	}
 	return file, err
 }

@@ -23,7 +23,7 @@ func Test_InsertFile(t *testing.T) {
 		WithArgs("test.txt", "test-path", 123).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	dbManager := NewDBManager(db)
+	dbManager := NewDataStore()
 
 	want, err := dbManager.InsertFile(models.FileData{Name: "test.txt", Path: "test-path", Size: 123})
 	if err != nil {
@@ -55,7 +55,7 @@ func Test_GetFilesWithoutHash(t *testing.T) {
 	expectedRows := sqlmock.NewRows([]string{"id", "path"}).AddRow(1, "somepath")
 	mock.ExpectQuery(FilesWithoutHashSql).WillReturnRows(expectedRows)
 
-	dbManager := NewDBManager(db)
+	dbManager := NewDataStore()
 
 	want, err := dbManager.GetFilesWithoutHash()
 
@@ -88,7 +88,7 @@ func Test_InsertHash(t *testing.T) {
 	mock.ExpectExec("^INSERT").
 		WithArgs("test-hash").
 		WillReturnResult(sqlmock.NewResult(hashId, 1))
-	dbManager := NewDBManager(db)
+	dbManager := NewDataStore()
 	want, err := dbManager.InsertHash(models.FileData{Hash: "test-hash"})
 	if err != nil {
 		t.Fatalf("Error encoutered while inserting hash: %v", err)
@@ -113,6 +113,6 @@ func Test_InsertFileIdHashId(t *testing.T) {
 	mock.ExpectExec("^INSERT").
 		WithArgs(123, 123).
 		WillReturnResult(sqlmock.NewResult(1, 1))
-	dbManager := NewDBManager(db)
+	dbManager := NewDataStore()
 	dbManager.InsertFileIdHashId(models.FileData{Id: 123, HashId: 123})
 }

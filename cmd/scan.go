@@ -33,7 +33,7 @@ func init() {
 }
 
 func scanDir(path string) {
-	dbManager := database.NewDBManager()
+	dbManager := database.NewDataStore()
 	filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			log.Printf("Error walking path: \"%v\"", err)
