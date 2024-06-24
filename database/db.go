@@ -10,7 +10,7 @@ import (
 
 const (
 	FilesWithoutHashSql   = "SELECT id, files.path FROM files LEFT JOIN files_hashes ON files.id = files_hashes.file_id WHERE files_hashes.file_id IS NULL"
-	InserFileSql          = "INSERT INTO files (name, path, size) VALUES (?, ?, ?)"
+	InserFileSql          = "INSERT OR IGNORE INTO files (name, path, size) VALUES (?, ?, ?)"
 	InsertFileIdHashIdSql = "INSERT INTO files_hashes (file_id, hash_id) VALUES (?, ?)"
 	InsertHashSql         = "INSERT OR IGNORE INTO hashes (hash) VALUES (?);"
 )
