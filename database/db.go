@@ -2,8 +2,10 @@ package database
 
 import (
 	"database/sql"
+	"fmt"
 	"giles/models"
 	"log"
+	"sync"
 )
 
 const (
@@ -13,13 +15,25 @@ const (
 	InsertHashSql         = "INSERT OR IGNORE INTO hashes (hash) VALUES (?);"
 )
 
+var (
+	instance *DBManager
+	once     sync.Once
+)
+
 type DBManager struct {
 	Db *sql.DB
 }
 
-func NewDBManager(db *sql.DB) *DBManager {
-	createTables(db)
-	return &DBManager{Db: db}
+func NewDBManager() *DBManager {
+	once.Do(func() {
+		db, err := sql.Open("sqlite3", "./giles.db")
+		if err != nil {
+			panic(fmt.Errorf("error opening database: %v", err))
+		}
+		createTables(db)
+		instance = &DBManager{Db: db}
+	})
+	return instance
 }
 
 func (dbm *DBManager) GetFilesWithoutHash() (files []models.FileData, err error) {

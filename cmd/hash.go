@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"crypto/sha256"
-	"database/sql"
 	"fmt"
 	"giles/database"
 	"giles/models"
@@ -21,11 +20,7 @@ var hashCmd = &cobra.Command{
 Usage: giles hash`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		db, err := sql.Open("sqlite3", "./giles.db")
-		if err != nil {
-			panic(fmt.Errorf("error opening database: %v", err))
-		}
-		dbManager := database.NewDBManager(db)
+		dbManager := database.NewDBManager()
 		files, err := dbManager.GetFilesWithoutHash()
 		if err != nil {
 			log.Printf("Error with query: %v", err)

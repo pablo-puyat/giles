@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"database/sql"
-	"fmt"
 	"giles/database"
 	"giles/models"
 	"github.com/spf13/cobra"
@@ -35,11 +33,7 @@ func init() {
 }
 
 func scanDir(path string) {
-	db, err := sql.Open("sqlite3", "./giles.db")
-	if err != nil {
-		panic(fmt.Errorf("error opening database: %v", err))
-	}
-	dbManager := database.NewDBManager(db)
+	dbManager := database.NewDBManager()
 	filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			log.Printf("Error walking path: \"%v\"", err)
