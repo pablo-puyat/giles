@@ -27,7 +27,6 @@ Usage: giles scan <directory>`,
 			dirPath = args[0]
 		}
 		scanDir(dirPath)
-		fmt.Println("Scan complete")
 	},
 }
 
@@ -40,7 +39,7 @@ func scanDir(path string) {
 	if err != nil {
 		panic(fmt.Errorf("error opening database: %v", err))
 	}
-
+	dbManager := database.NewDBManager(db)
 	filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			log.Printf("Error walking path: \"%v\"", err)
@@ -55,7 +54,10 @@ func scanDir(path string) {
 			Size: info.Size(),
 		}
 
-		database.InsertFile(db, fileData)
+		_, err = dbManager.InsertFile(fileData)
+		if err != nil {
+			return err
+		}
 
 		return nil
 	})

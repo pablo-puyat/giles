@@ -25,15 +25,18 @@ Usage: giles hash`,
 		if err != nil {
 			panic(fmt.Errorf("error opening database: %v", err))
 		}
-		files, err := database.GetFilesWithoutHash(db)
+		dbManager := database.NewDBManager(db)
+		files, err := dbManager.GetFilesWithoutHash()
 		if err != nil {
 			log.Printf("Error with query: %v", err)
 			return
 		}
 
 		c1 := make(chan models.FileData)
-		c2 := transform(c1, insertHash, db)
-		c3 := transform(c2, database.InsertFileIdHashId, db)
+		c2 := transform(c1, func(file models.FileData) (models.FileData, error) {
+			return insertHash(dbManager, file)
+		})
+		c3 := transform(c2, dbManager.InsertFileIdHashId)
 
 		go func() {
 			for result := range c3 {
@@ -56,26 +59,39 @@ func init() {
 	hashCmd.Flags().IntP("workers", "w", 1, "Number of workers to use")
 }
 
-func insertHash(db *sql.DB, file models.FileData) models.FileData {
-	file.Hash = calcHash(file.Path)
-	hashId := database.InsertHash(db, file)
+func insertHash(dbManager *database.DBManager, file models.FileData) (models.FileData, error) {
+	var hash string
+	hash, err := calcHash(file.Path)
+	if err != nil {
+		return file, err
+	}
+	file.Hash = hash
+	hashId, err := dbManager.InsertHash(file)
+	if err != nil {
+		return file, err
+	}
 	file.HashId = hashId.HashId
-	return file
+	return file, nil
 }
 
-func transform(in <-chan models.FileData, transformer func(*sql.DB, models.FileData) models.FileData, db *sql.DB) <-chan models.FileData {
+func transform(in <-chan models.FileData, transformer func(models.FileData) (models.FileData, error)) <-chan models.FileData {
 	out := make(chan models.FileData)
 	go func() {
 		for file := range in {
 			fmt.Printf("transform --- %d\n", file.Id)
-			out <- transformer(db, file)
+			file, err := transformer(file)
+			if err != nil {
+				log.Printf("Error transforming file: %v", err)
+				continue
+			}
+			out <- file
 		}
 		close(out)
 	}()
 	return out
 }
 
-func calcHash(path string) (hash string) {
+func calcHash(path string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		log.Printf("Error encoutered while opening file: \"%v\"", err)
@@ -86,6 +102,7 @@ func calcHash(path string) (hash string) {
 	if _, err := io.Copy(h, f); err != nil {
 		log.Printf("Error encoutered while hashing file: \"%v\"", err)
 	}
-	hash = fmt.Sprintf("%x", h.Sum(nil))
-	return
+	hash := fmt.Sprintf("%x", h.Sum(nil))
+
+	return hash, err
 }

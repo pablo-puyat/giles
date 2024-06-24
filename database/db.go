@@ -13,8 +13,16 @@ const (
 	InsertHashSql         = "INSERT OR IGNORE INTO hashes (hash) VALUES (?);"
 )
 
-func GetFilesWithoutHash(db *sql.DB) (files []models.FileData, err error) {
-	rows, err := db.Query(FilesWithoutHashSql)
+type DBManager struct {
+	Db *sql.DB
+}
+
+func NewDBManager(db *sql.DB) *DBManager {
+	return &DBManager{Db: db}
+}
+
+func (dbm *DBManager) GetFilesWithoutHash() (files []models.FileData, err error) {
+	rows, err := dbm.Db.Query(FilesWithoutHashSql)
 	if err != nil {
 		return nil, err
 	}
@@ -36,24 +44,24 @@ func GetFilesWithoutHash(db *sql.DB) (files []models.FileData, err error) {
 	return files, err
 }
 
-func InsertFile(db *sql.DB, file models.FileData) models.FileData {
-	_, err := db.Exec(InserFileSql, file.Name, file.Path, file.Size)
+func (dbm *DBManager) InsertFile(file models.FileData) (models.FileData, error) {
+	_, err := dbm.Db.Exec(InserFileSql, file.Name, file.Path, file.Size)
 	if err != nil {
 		log.Printf("Error inserting file: %v", err)
 	}
-	return file
+	return file, err
 }
 
-func InsertFileIdHashId(db *sql.DB, file models.FileData) models.FileData {
-	_, err := db.Exec(InsertFileIdHashIdSql, file.Id, file.HashId)
+func (dbm *DBManager) InsertFileIdHashId(file models.FileData) (models.FileData, error) {
+	_, err := dbm.Db.Exec(InsertFileIdHashIdSql, file.Id, file.HashId)
 	if err != nil {
 		log.Printf("Error inserting file: %v", err)
 	}
-	return file
+	return file, err
 }
 
-func InsertHash(db *sql.DB, file models.FileData) models.FileData {
-	result, err := db.Exec(InsertHashSql, file.Hash)
+func (dbm *DBManager) InsertHash(file models.FileData) (models.FileData, error) {
+	result, err := dbm.Db.Exec(InsertHashSql, file.Hash)
 	if err != nil {
 		log.Fatalf("Error inserting hash: %v", err)
 	}
@@ -62,7 +70,7 @@ func InsertHash(db *sql.DB, file models.FileData) models.FileData {
 		log.Fatalf("Error inserting hash: %v", err)
 	}
 	if ra == 0 {
-		rows, err := db.Query("SELECT id FROM hashes WHERE hash = ?", file.Hash)
+		rows, err := dbm.Db.Query("SELECT id FROM hashes WHERE hash = ?", file.Hash)
 		if err != nil {
 			log.Fatalf("Error querying hash: %v", err)
 		}
@@ -76,5 +84,5 @@ func InsertHash(db *sql.DB, file models.FileData) models.FileData {
 	} else {
 		file.HashId = ra
 	}
-	return file
+	return file, err
 }
