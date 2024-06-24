@@ -20,31 +20,28 @@ var hashCmd = &cobra.Command{
 Usage: giles hash`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		dbManager := database.NewDataStore()
-		files, err := dbManager.GetFilesWithoutHash()
+		ds := database.NewDataStore()
+		files, err := ds.GetFilesWithoutHash()
 		if err != nil {
 			log.Printf("Error with query: %v", err)
 			return
 		}
 
-		c1 := make(chan TransformResult)
+		c1 := generator(files)
 		c2 := transform(c1, func(file models.FileData) (models.FileData, error) {
-			return insertHash(dbManager, file)
-		})
-		c3 := transform(c2, dbManager.InsertFileIdHashId)
-
-		go func() {
-			for r := range c3 {
-				if r.Err != nil {
-					fmt.Printf("final --- %v\n", r.Err)
-				}
+			file, err := insertHash(ds, file)
+			if err != nil {
+				log.Fatalf("Error inserting hash: %v", err)
 			}
-		}()
+			return file, err
+		})
+		c3 := transform(c2, ds.InsertFileIdHashId)
 
-		for _, f := range files {
-			c1 <- TransformResult{File: f}
+		for r := range c3 {
+			if r.Err != nil {
+				fmt.Printf("final --- %v\n", r.Err)
+			}
 		}
-		close(c1)
 
 		print("\rDone. \n\nProcessed ", len(files), " files\n")
 	},
@@ -55,18 +52,30 @@ func init() {
 	hashCmd.Flags().IntP("workers", "w", 1, "Number of workers to use")
 }
 
-func insertHash(dbManager *database.DataStore, file models.FileData) (models.FileData, error) {
+func generator(files []models.FileData) <-chan TransformResult {
+	out := make(chan TransformResult)
+	go func() {
+		for _, f := range files {
+			out <- TransformResult{File: f}
+		}
+		close(out)
+	}()
+	return out
+}
+
+func insertHash(ds *database.DataStore, file models.FileData) (models.FileData, error) {
 	var hash string
 	hash, err := calcHash(file.Path)
 	if err != nil {
 		return file, err
 	}
 	file.Hash = hash
-	hashId, err := dbManager.InsertHash(file)
+	hashId, err := ds.InsertHash(file)
 	if err != nil {
 		return file, err
 	}
 	file.HashId = hashId.HashId
+	println("Inserting ", hash, " for id ", file.Id)
 	return file, nil
 }
 
@@ -74,12 +83,9 @@ func transform(in <-chan TransformResult, transformer func(models.FileData) (mod
 	out := make(chan TransformResult)
 	go func() {
 		for tr := range in {
-			if tr.Err != nil {
-				out <- tr
-			} else {
-				file, err := transformer(tr.File)
-				out <- TransformResult{File: file, Err: err}
-			}
+			println("Transforming ", tr.File.Id)
+			file, err := transformer(tr.File)
+			out <- TransformResult{File: file, Err: err}
 		}
 		close(out)
 	}()
