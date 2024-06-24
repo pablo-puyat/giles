@@ -18,6 +18,7 @@ type DBManager struct {
 }
 
 func NewDBManager(db *sql.DB) *DBManager {
+	createTables(db)
 	return &DBManager{Db: db}
 }
 
