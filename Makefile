@@ -15,6 +15,10 @@ build: vet
 	go build .
 .PHONY:build
 
+test:
+	find . -name "*.go" | entr -rc go run .
+.PHONY:test
+
 build-arm: vet
 	CC=x86_64-linux-musl-gcc \
 	CXX=x86_64-linux-musl-g++ \
