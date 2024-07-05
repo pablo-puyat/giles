@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"sync"
 )
 
 var hashCmd = &cobra.Command{
@@ -37,6 +38,7 @@ Usage: giles hash`,
 			}
 			return file, err
 		})
+
 		c3 := transform(c2, ds.InsertFileIdHashId)
 
 		for r := range c3 {
@@ -85,13 +87,38 @@ func insertHash(ds *database.DataStore, file models.FileData) (models.FileData, 
 }
 
 func transform(in <-chan TransformResult, transformer func(models.FileData) (models.FileData, error)) <-chan TransformResult {
+	var wc int = 8
+	out := make(chan TransformResult, wc)
+
+	wg := sync.WaitGroup{}
+	wg.Add(wc)
+
+	for i := 0; i < wc; i++ {
+		go func() {
+			for tr := range in {
+				file, err := transformer(tr.File)
+				out <- TransformResult{File: file, Err: err}
+			}
+			print("\rFor Loop Done. \n")
+			defer wg.Done()
+		}()
+	}
+	go func() {
+		wg.Wait()
+		print("\rWait Groups Done. \n")
+		close(out)
+	}()
+	return out
+}
+
+func insert(in <-chan TransformResult, transformer func(models.FileData) (models.FileData, error)) <-chan TransformResult {
 	out := make(chan TransformResult)
+
 	go func() {
 		for tr := range in {
 			file, err := transformer(tr.File)
 			out <- TransformResult{File: file, Err: err}
 		}
-		close(out)
 	}()
 	return out
 }
