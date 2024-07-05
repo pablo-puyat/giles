@@ -26,6 +26,8 @@ Usage: giles hash`,
 			log.Printf("Error with query: %v", err)
 			return
 		}
+		fileCount = len(files)
+		fmt.Printf("Calculating hash for %d files\n", fileCount)
 
 		c1 := generator(files)
 		c2 := transform(c1, func(file models.FileData) (models.FileData, error) {
@@ -46,6 +48,8 @@ Usage: giles hash`,
 		print("\rDone. \n\nProcessed ", len(files), " files\n")
 	},
 }
+var processed int = 0
+var fileCount int = 0
 
 func init() {
 	rootCmd.AddCommand(hashCmd)
@@ -75,7 +79,8 @@ func insertHash(ds *database.DataStore, file models.FileData) (models.FileData, 
 		return file, err
 	}
 	file.HashId = hashId.HashId
-	println("Inserting ", hash, " for id ", file.Id)
+	processed++
+	print("\r Processed ", processed, " of ", fileCount, " files")
 	return file, nil
 }
 
@@ -83,7 +88,6 @@ func transform(in <-chan TransformResult, transformer func(models.FileData) (mod
 	out := make(chan TransformResult)
 	go func() {
 		for tr := range in {
-			println("Transforming ", tr.File.Id)
 			file, err := transformer(tr.File)
 			out <- TransformResult{File: file, Err: err}
 		}

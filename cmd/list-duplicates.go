@@ -9,7 +9,7 @@ var duplicatesCmd = &cobra.Command{
 	Short: "Show duplicate files",
 	Long: `Show duplicate files in the database.
 
-Usage: giles duplicates [list] [delete] [rename]`,
+Usage: giles duplicates [list] [rename]`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 	},
