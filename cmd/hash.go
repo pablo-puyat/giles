@@ -31,19 +31,41 @@ Usage: giles hash`,
 		fmt.Printf("Calculating hash for %d files\n", fileCount)
 
 		c1 := generator(files)
-		c2 := transform(c1, func(file models.FileData) (models.FileData, error) {
-			file, err := insertHash(ds, file)
+
+		c2 := transformBuffered(c1, func(file models.FileData) (models.FileData, error) {
+			file, err := calculate(file)
 			if err != nil {
-				log.Fatalf("Error inserting hash: %v", err)
+				log.Printf("Error inserting hash: %v", err)
 			}
 			return file, err
 		})
 
-		c3 := transform(c2, ds.InsertFileIdHashId)
+		var filesToInsert []models.FileData
+		c3 := transform(c2, func(file models.FileData) (models.FileData, error) {
+			filesToInsert = append(filesToInsert, file)
+			if len(filesToInsert) == 8 {
+				for _, f := range filesToInsert {
+					file, err := ds.InsertFile(f)
+					if err != nil {
+						log.Printf("Error inserting file: %v", err)
+						continue
+					}
+					file, err = ds.InsertFileIdHashId(file)
+					if err != nil {
+						log.Printf("Error inserting file and hash id: %v", err)
+					}
+				}
+				filesToInsert = nil
+			}
+			processed++
+			print("\r Processed ", processed, " of ", fileCount, " files")
+			return file, err
+		})
 
 		for r := range c3 {
+			print("\r Processed: ", r.File.Name)
 			if r.Err != nil {
-				fmt.Printf("final --- %v\n", r.Err)
+				fmt.Printf("final error--- %v\n", r.Err)
 			}
 		}
 
@@ -69,30 +91,21 @@ func generator(files []models.FileData) <-chan TransformResult {
 	return out
 }
 
-func insertHash(ds *database.DataStore, file models.FileData) (models.FileData, error) {
-	var hash string
+func calculate(file models.FileData) (models.FileData, error) {
 	hash, err := calcHash(file.Path)
 	if err != nil {
 		return file, err
 	}
 	file.Hash = hash
-	hashId, err := ds.InsertHash(file)
-	if err != nil {
-		return file, err
-	}
-	file.HashId = hashId.HashId
-	processed++
-	print("\r Processed ", processed, " of ", fileCount, " files")
 	return file, nil
 }
 
-func transform(in <-chan TransformResult, transformer func(models.FileData) (models.FileData, error)) <-chan TransformResult {
+func transformBuffered(in <-chan TransformResult, transformer func(models.FileData) (models.FileData, error)) <-chan TransformResult {
 	var wc int = 8
 	out := make(chan TransformResult, wc)
 
 	wg := sync.WaitGroup{}
 	wg.Add(wc)
-
 	for i := 0; i < wc; i++ {
 		go func() {
 			for tr := range in {
@@ -111,14 +124,15 @@ func transform(in <-chan TransformResult, transformer func(models.FileData) (mod
 	return out
 }
 
-func insert(in <-chan TransformResult, transformer func(models.FileData) (models.FileData, error)) <-chan TransformResult {
+func transform(in <-chan TransformResult, transformer func(models.FileData) (models.FileData, error)) <-chan TransformResult {
 	out := make(chan TransformResult)
-
 	go func() {
 		for tr := range in {
 			file, err := transformer(tr.File)
 			out <- TransformResult{File: file, Err: err}
 		}
+		close(out)
+		print("\rFor Loop Done. \n")
 	}()
 	return out
 }
@@ -126,7 +140,8 @@ func insert(in <-chan TransformResult, transformer func(models.FileData) (models
 func calcHash(path string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		log.Fatalf("Error encoutered while opening file: \"%v\"", err)
+		log.Printf("Error encoutered while opening file: \"%v\"", err)
+		return "", err
 	}
 	defer f.Close()
 
