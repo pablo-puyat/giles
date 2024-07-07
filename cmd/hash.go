@@ -168,7 +168,7 @@ func getVelocity() string {
 	if s > maxVelocity {
 		maxVelocity = s
 	}
-	return fmt.Sprintf("Velocity: %d MB/s  Min. Velocity: %d  MB/s  Max. Velocity: %d MB/s", s, minVelocity, maxVelocity)
+	return fmt.Sprintf("Velocity: %d MB/s  Min. Velocity: %d MB/s  Max. Velocity: %d MB/s", s, minVelocity, maxVelocity)
 }
 
 type TransformResult struct {
