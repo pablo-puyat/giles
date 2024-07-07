@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	FilesWithoutHashSql   = "SELECT id, files.path FROM files LEFT JOIN files_hashes ON files.id = files_hashes.file_id WHERE files_hashes.file_id IS NULL"
+	FilesWithoutHashSql   = "SELECT id, files.path, size FROM files LEFT JOIN files_hashes ON files.id = files_hashes.file_id WHERE files_hashes.file_id IS NULL"
 	InserFileSql          = "INSERT OR IGNORE INTO files (name, path, size) VALUES (?, ?, ?)"
 	InsertFileIdHashIdSql = "INSERT INTO files_hashes (file_id, hash_id) VALUES (?, ?)"
 	InsertHashSql         = "INSERT OR IGNORE INTO hashes (hash) VALUES (?);"
@@ -71,7 +71,7 @@ func (ds *DataStore) GetFilesWithoutHash() (files []models.FileData, err error) 
 
 	for rows.Next() {
 		var file models.FileData
-		err := rows.Scan(&file.Id, &file.Path)
+		err := rows.Scan(&file.Id, &file.Path, &file.Size)
 		if err != nil {
 			return nil, err
 		}

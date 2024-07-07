@@ -10,12 +10,16 @@ import (
 	"io"
 	"log"
 	"os"
+	"time"
 )
 
 var (
-	hashCmd   *cobra.Command
-	processed int
-	workers   int
+	fileCount     int
+	hashCmd       *cobra.Command
+	processed     int
+	totalDuration time.Duration
+	totalBytes    int
+	workers       int
 )
 
 func init() {
@@ -39,7 +43,7 @@ func hashFiles(cmd *cobra.Command, args []string) {
 		log.Printf("Error with query: %v", err)
 		return
 	}
-	fileCount := len(files)
+	fileCount = len(files)
 	fmt.Printf("Calculating hash for %d files\n", fileCount)
 
 	c1 := generator(files)
@@ -47,7 +51,7 @@ func hashFiles(cmd *cobra.Command, args []string) {
 	c3 := insertFiles(ds, c2)
 
 	for r := range c3 {
-		print("\r Processed ", processed, " of ", fileCount, " files")
+		print("\r Processed ", processed, " of ", fileCount, " files", " Total bytes: ", totalBytes, " Total duration: ", totalDuration, " Average speed: ", getAverageSpeed())
 		if r.Err != nil {
 			fmt.Printf("final error--- %v\n", r.Err)
 		}
@@ -111,11 +115,15 @@ func batchInsertFiles(ds *database.DataStore, files []models.FileData, out chan<
 }
 
 func calculate(file models.FileData) (models.FileData, error) {
+	st := time.Now()
 	hash, err := calcHash(file.Path)
 	if err != nil {
 		return file, err
 	}
 	file.Hash = hash
+	elapsed := time.Since(st)
+	totalDuration += elapsed
+	print("\r Processed ", processed, " of ", fileCount, " files", " Total bytes: ", totalBytes, " Total duration: ", totalDuration, " Average speed: ", getAverageSpeed())
 	return file, nil
 }
 
@@ -132,6 +140,13 @@ func calcHash(path string) (string, error) {
 		log.Fatalf("Error hashing file: \"%v\"", err)
 	}
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
+}
+
+func getAverageSpeed() time.Duration {
+	if processed == 0 {
+		return 0
+	}
+	return totalDuration / time.Duration(processed)
 }
 
 type TransformResult struct {
