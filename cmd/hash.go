@@ -40,10 +40,31 @@ Usage: giles hash`,
 			return file, err
 		})
 
-		var filesToInsert []models.FileData
-		c3 := transform(c2, func(file models.FileData) (models.FileData, error) {
-			filesToInsert = append(filesToInsert, file)
-			if len(filesToInsert) == 8 {
+		c3 := make(chan TransformResult)
+
+		go func() {
+			var filesToInsert []models.FileData
+			for file := range c2 {
+				filesToInsert = append(filesToInsert, file.File)
+				if len(filesToInsert) == 8 {
+					for _, f := range filesToInsert {
+						file, err := ds.InsertFile(f)
+						if err != nil {
+							log.Printf("Error inserting file: %v", err)
+							continue
+						}
+						file, err = ds.InsertFileIdHashId(file)
+						if err != nil {
+							log.Printf("Error inserting file and hash id: %v", err)
+						}
+						processed++
+						c3 <- TransformResult{File: file, Err: err}
+
+					}
+					filesToInsert = nil
+				}
+			}
+			if len(filesToInsert) > 0 {
 				for _, f := range filesToInsert {
 					file, err := ds.InsertFile(f)
 					if err != nil {
@@ -54,16 +75,16 @@ Usage: giles hash`,
 					if err != nil {
 						log.Printf("Error inserting file and hash id: %v", err)
 					}
+					processed++
+					c3 <- TransformResult{File: file, Err: err}
 				}
 				filesToInsert = nil
 			}
-			processed++
-			print("\r Processed ", processed, " of ", fileCount, " files")
-			return file, err
-		})
+			close(c3)
+		}()
 
 		for r := range c3 {
-			print("\r Processed: ", r.File.Name)
+			print("\r Processed ", processed, " of ", fileCount, " files")
 			if r.Err != nil {
 				fmt.Printf("final error--- %v\n", r.Err)
 			}
@@ -124,19 +145,6 @@ func transformBuffered(in <-chan TransformResult, transformer func(models.FileDa
 	return out
 }
 
-func transform(in <-chan TransformResult, transformer func(models.FileData) (models.FileData, error)) <-chan TransformResult {
-	out := make(chan TransformResult)
-	go func() {
-		for tr := range in {
-			file, err := transformer(tr.File)
-			out <- TransformResult{File: file, Err: err}
-		}
-		close(out)
-		print("\rFor Loop Done. \n")
-	}()
-	return out
-}
-
 func calcHash(path string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -150,7 +158,6 @@ func calcHash(path string) (string, error) {
 		log.Fatalf("Error encoutered while hashing file: \"%v\"", err)
 	}
 	hash := fmt.Sprintf("%x", h.Sum(nil))
-
 	return hash, err
 }
 
