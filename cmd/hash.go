@@ -20,6 +20,8 @@ var (
 	totalDuration time.Duration
 	totalBytes    int
 	workers       int
+	minVelocity   int
+	maxVelocity   int
 )
 
 func init() {
@@ -51,7 +53,7 @@ func hashFiles(cmd *cobra.Command, args []string) {
 	c3 := insertFiles(ds, c2)
 
 	for r := range c3 {
-		print("\rProcessed ", processed, " of ", fileCount, " files", " Total bytes: ", totalBytes, " Total duration: ", totalDuration, " Average speed: ", getAverageSpeed())
+		getStatus()
 		if r.Err != nil {
 			fmt.Printf("final error--- %v\n", r.Err)
 		}
@@ -123,7 +125,8 @@ func calculate(file models.FileData) (models.FileData, error) {
 	file.Hash = hash
 	elapsed := time.Since(st)
 	totalDuration += elapsed
-	print("\rProcessed ", processed, " of ", fileCount, " files", " Total bytes: ", totalBytes, " Total duration: ", totalDuration, " Average speed: ", getAverageSpeed())
+	totalBytes += int(file.Size)
+	getStatus()
 	return file, nil
 }
 
@@ -142,11 +145,30 @@ func calcHash(path string) (string, error) {
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
-func getAverageSpeed() time.Duration {
+func getStatus() {
+	fmt.Printf("\rProgress: %d of %d files   %s   Duration: %s", processed, fileCount, getVelocity(), getTime())
+}
+
+func getSize() string {
+	return fmt.Sprintf("%d MB", totalBytes/(1024*1024))
+}
+
+func getTime() string {
+	return fmt.Sprintf("%d seconds", int(totalDuration.Seconds()))
+}
+
+func getVelocity() string {
 	if processed == 0 {
-		return 0
+		return ""
 	}
-	return totalDuration / time.Duration(processed)
+	s := totalBytes / (1024 * 1024) / int(totalDuration.Seconds())
+	if s < minVelocity || minVelocity == 0 {
+		minVelocity = s
+	}
+	if s > maxVelocity {
+		maxVelocity = s
+	}
+	return fmt.Sprintf("Velocity: %d MB/s  Min. Velocity: %d  MB/s  Max. Velocity: %d MB/s", s, minVelocity, maxVelocity)
 }
 
 type TransformResult struct {
