@@ -51,7 +51,7 @@ func hashFiles(cmd *cobra.Command, args []string) {
 	c3 := insertFiles(ds, c2)
 
 	for r := range c3 {
-		print("\r Processed ", processed, " of ", fileCount, " files", " Total bytes: ", totalBytes, " Total duration: ", totalDuration, " Average speed: ", getAverageSpeed())
+		print("\rProcessed ", processed, " of ", fileCount, " files", " Total bytes: ", totalBytes, " Total duration: ", totalDuration, " Average speed: ", getAverageSpeed())
 		if r.Err != nil {
 			fmt.Printf("final error--- %v\n", r.Err)
 		}
@@ -123,7 +123,7 @@ func calculate(file models.FileData) (models.FileData, error) {
 	file.Hash = hash
 	elapsed := time.Since(st)
 	totalDuration += elapsed
-	print("\r Processed ", processed, " of ", fileCount, " files", " Total bytes: ", totalBytes, " Total duration: ", totalDuration, " Average speed: ", getAverageSpeed())
+	print("\rProcessed ", processed, " of ", fileCount, " files", " Total bytes: ", totalBytes, " Total duration: ", totalDuration, " Average speed: ", getAverageSpeed())
 	return file, nil
 }
 
