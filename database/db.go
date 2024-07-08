@@ -96,7 +96,7 @@ func (ds *DataStore) InsertFile(file models.FileData) (models.FileData, error) {
 func (ds *DataStore) InsertFileIdHashId(file models.FileData) (models.FileData, error) {
 	_, err := ds.DB.Exec(InsertFileIdHashIdSql, file.Id, file.HashId)
 	if err != nil {
-		log.Fatalf("Error inserting file and hash id: %v", err)
+		log.Printf("Error inserting file and hash id: %v", err)
 	}
 	return file, err
 }

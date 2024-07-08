@@ -38,7 +38,7 @@ func init() {
 }
 
 func addHash(in <-chan TransformResult, transformer func(models.FileData) TransformResult) <-chan TransformResult {
-	out := make(chan TransformResult)
+	out := make(chan TransformResult, workers)
 	wg := sync.WaitGroup{}
 	wg.Add(workers)
 	for i := 0; i < workers; i++ {
@@ -57,6 +57,38 @@ func addHash(in <-chan TransformResult, transformer func(models.FileData) Transf
 	return out
 }
 
+func calculate(file models.FileData) TransformResult {
+	st := time.Now()
+	hash, err := calculateHash(file.Path)
+	if err != nil {
+		return TransformResult{file, 0, err}
+	}
+	elapsed := time.Since(st)
+	file.Hash = hash
+	totalBytes += int(file.Size)
+	processed += 1
+
+	speed := float64(file.Size) / elapsed.Seconds() / (1024 * 1024) // Speed in MB/s for this file
+	updateVelocity(speed)
+
+	return TransformResult{file, elapsed, nil}
+}
+
+func calculateHash(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		log.Printf("Error opening file: \"%v\"", err)
+		return "", err
+	}
+	defer f.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		log.Fatalf("Error hashing file: \"%v\"", err)
+	}
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
+}
+
 func generator(files []models.FileData) <-chan TransformResult {
 	out := make(chan TransformResult)
 	go func() {
@@ -66,6 +98,26 @@ func generator(files []models.FileData) <-chan TransformResult {
 		close(out)
 	}()
 	return out
+}
+
+func getTime() string {
+	return fmt.Sprintf("%d seconds", int(time.Now().Sub(startTime).Seconds()))
+}
+
+func getVelocity() string {
+	if processed == 0 {
+		return ""
+	}
+	// Calculate avgSpeed in MB/s
+	avgSpeedMB := float64(totalBytes) / time.Now().Sub(startTime).Seconds() / (1024 * 1024) // Convert bytes per second to MB/s
+
+	if avgSpeedMB <= 0.50 {
+		// Calculate avgSpeed in KB/s
+		avgSpeedKB := float64(totalBytes) / time.Now().Sub(startTime).Seconds() / 1024 // Convert bytes per second to KB/s
+		return fmt.Sprintf("Avg. Velocity: %.0f KB/s  Min. Velocity: %.0f KB/s  Max. Velocity: %.0f KB/s", avgSpeedKB, minVelocity/1024, maxVelocity/1024)
+	}
+
+	return fmt.Sprintf("Avg. Velocity: %.0f MB/s  Min. Velocity: %.0f MB/s  Max. Velocity: %.0f MB/s", avgSpeedMB, minVelocity, maxVelocity)
 }
 
 func hashFiles(cmd *cobra.Command, args []string) {
@@ -95,49 +147,44 @@ func hashFiles(cmd *cobra.Command, args []string) {
 func insertFiles(ds *database.DataStore, in <-chan TransformResult) <-chan TransformResult {
 	out := make(chan TransformResult)
 	go func() {
-		for f := range in {
-			file, err := ds.InsertFile(f.File)
-			if err != nil {
-				log.Printf("Error inserting file: %v", err)
-				continue
+		var filesToProcess = make([]models.FileData, 0, workers)
+		for tr := range in {
+			filesToProcess = append(filesToProcess, tr.File)
+			out <- TransformResult{tr.File, tr.Duration, nil}
+			if len(filesToProcess) == workers {
+				for _, f := range filesToProcess {
+					g, err := ds.InsertFile(f)
+					if err != nil {
+						continue
+					}
+					_, err = ds.InsertFileIdHashId(g)
+					if err != nil {
+						continue
+					}
+				}
+				filesToProcess = nil
 			}
-			out <- TransformResult{file, f.Duration, nil}
+		}
+		if len(filesToProcess) > 0 {
+			for _, f := range filesToProcess {
+				g, err := ds.InsertFile(f)
+				if err != nil {
+					continue
+				}
+				_, err = ds.InsertFileIdHashId(g)
+				if err != nil {
+					continue
+				}
+				fmt.Printf("Inserted %s", g.Path)
+			}
 		}
 		close(out)
 	}()
 	return out
 }
 
-func calcHash(path string) (string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		log.Printf("Error opening file: \"%v\"", err)
-		return "", err
-	}
-	defer f.Close()
-
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		log.Fatalf("Error hashing file: \"%v\"", err)
-	}
-	return fmt.Sprintf("%x", h.Sum(nil)), nil
-}
-
-func calculate(file models.FileData) TransformResult {
-	st := time.Now()
-	hash, err := calcHash(file.Path)
-	if err != nil {
-		return TransformResult{file, 0, err}
-	}
-	elapsed := time.Since(st)
-	file.Hash = hash
-	totalBytes += int(file.Size)
-	processed += 1
-
-	speed := float64(file.Size) / elapsed.Seconds() / (1024 * 1024) // Speed in MB/s for this file
-	updateVelocity(speed)
-
-	return TransformResult{file, elapsed, nil}
+func statusString() string {
+	return fmt.Sprintf("\rProgress: %d of %d files %s Duration: %s", processed, fileCount, getVelocity(), getTime())
 }
 
 func updateVelocity(speed float64) {
@@ -147,29 +194,6 @@ func updateVelocity(speed float64) {
 	if speed > maxVelocity {
 		maxVelocity = speed
 	}
-}
-
-func getTime() string {
-	return fmt.Sprintf("%d seconds", int(time.Now().Sub(startTime).Seconds()))
-}
-func getVelocity() string {
-	if processed == 0 {
-		return ""
-	}
-	// Calculate avgSpeed in MB/s
-	avgSpeedMB := float64(totalBytes) / time.Now().Sub(startTime).Seconds() / (1024 * 1024) // Convert bytes per second to MB/s
-
-	if avgSpeedMB <= 0.50 {
-		// Calculate avgSpeed in KB/s
-		avgSpeedKB := float64(totalBytes) / time.Now().Sub(startTime).Seconds() / 1024 // Convert bytes per second to KB/s
-		return fmt.Sprintf("Avg. Velocity: %.0f KB/s  Min. Velocity: %.0f KB/s  Max. Velocity: %.0f KB/s", avgSpeedKB, minVelocity/1024, maxVelocity/1024)
-	}
-
-	return fmt.Sprintf("Avg. Velocity: %.0f MB/s  Min. Velocity: %.0f MB/s  Max. Velocity: %.0f MB/s", avgSpeedMB, minVelocity, maxVelocity)
-}
-
-func statusString() string {
-	return fmt.Sprintf("\rProgress: %d of %d files %s Duration: %s", processed, fileCount, getVelocity(), getTime())
 }
 
 type TransformResult struct {
