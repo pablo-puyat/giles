@@ -68,9 +68,6 @@ func calculate(file models.FileData) TransformResult {
 	totalBytes += int(file.Size)
 	processed += 1
 
-	speed := float64(file.Size) / elapsed.Seconds() / (1024 * 1024) // Speed in MB/s for this file
-	updateVelocity(speed)
-
 	return TransformResult{file, elapsed, nil}
 }
 
@@ -108,16 +105,8 @@ func getVelocity() string {
 	if processed == 0 {
 		return ""
 	}
-	// Calculate avgSpeed in MB/s
-	avgSpeedMB := float64(totalBytes) / time.Now().Sub(startTime).Seconds() / (1024 * 1024) // Convert bytes per second to MB/s
-
-	if avgSpeedMB <= 0.50 {
-		// Calculate avgSpeed in KB/s
-		avgSpeedKB := float64(totalBytes) / time.Now().Sub(startTime).Seconds() / 1024 // Convert bytes per second to KB/s
-		return fmt.Sprintf("Avg. Velocity: %.0f KB/s  Min. Velocity: %.0f KB/s  Max. Velocity: %.0f KB/s", avgSpeedKB, minVelocity/1024, maxVelocity/1024)
-	}
-
-	return fmt.Sprintf("Avg. Velocity: %.0f MB/s  Min. Velocity: %.0f MB/s  Max. Velocity: %.0f MB/s", avgSpeedMB, minVelocity, maxVelocity)
+	v := float64(totalBytes) / time.Now().Sub(startTime).Seconds() / (1024 * 1024)
+	return fmt.Sprintf("Velocity: %.0f MB/s", v)
 }
 
 func hashFiles(cmd *cobra.Command, args []string) {
@@ -150,50 +139,32 @@ func insertFiles(ds *database.DataStore, in <-chan TransformResult) <-chan Trans
 		var filesToProcess = make([]models.FileData, 0, workers)
 		for tr := range in {
 			filesToProcess = append(filesToProcess, tr.File)
-			out <- TransformResult{tr.File, tr.Duration, nil}
-			if len(filesToProcess) == workers {
-				for _, f := range filesToProcess {
-					g, err := ds.InsertFile(f)
-					if err != nil {
-						continue
-					}
-					_, err = ds.InsertFileIdHashId(g)
-					if err != nil {
-						continue
-					}
-				}
-				filesToProcess = nil
+			if len(filesToProcess) >= workers/2 {
+				processFiles(ds, &filesToProcess)
 			}
+			out <- tr
 		}
 		if len(filesToProcess) > 0 {
-			for _, f := range filesToProcess {
-				g, err := ds.InsertFile(f)
-				if err != nil {
-					continue
-				}
-				_, err = ds.InsertFileIdHashId(g)
-				if err != nil {
-					continue
-				}
-				fmt.Printf("Inserted %s", g.Path)
-			}
+			processFiles(ds, &filesToProcess)
 		}
 		close(out)
 	}()
 	return out
 }
 
-func statusString() string {
-	return fmt.Sprintf("\rProgress: %d of %d files %s Duration: %s", processed, fileCount, getVelocity(), getTime())
+func processFiles(ds *database.DataStore, filesToProcess *[]models.FileData) {
+	for _, f := range *filesToProcess {
+		if g, err := ds.InsertFile(f); err == nil {
+			if _, err = ds.InsertFileIdHashId(g); err == nil {
+				print(statusString())
+			}
+		}
+	}
+	*filesToProcess = nil
 }
 
-func updateVelocity(speed float64) {
-	if speed < minVelocity || minVelocity == 0 {
-		minVelocity = speed
-	}
-	if speed > maxVelocity {
-		maxVelocity = speed
-	}
+func statusString() string {
+	return fmt.Sprintf("\rProgress: %d of %d files %s Duration: %s", processed, fileCount, getVelocity(), getTime())
 }
 
 type TransformResult struct {
