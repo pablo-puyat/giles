@@ -62,7 +62,7 @@ func hashFiles(cmd *cobra.Command, args []string) {
 	fmt.Printf("Processing %d files with %d workers\n", fileCount, workers)
 
 	c1 := generator(files)
-	c2 := transformBuffered(c1, calculate)
+	c2 := addHash(c1, calculate)
 	c3 := insertFiles(ds, c2)
 
 	for r := range c3 {
@@ -141,7 +141,7 @@ func getTime() string {
 }
 
 func getVelocity() string {
-	if processed == 0 {
+	if processed == 0 || totalDuration.Seconds() == 0 {
 		return ""
 	}
 	s := (totalBytes / (1024 * 1024)) / int(totalDuration.Seconds()) / processed
@@ -158,13 +158,22 @@ func statusString() string {
 	return fmt.Sprintf("\rProgress: %d of %d files %s Duration: %s", processed, fileCount, getVelocity(), getTime())
 }
 
-func transformBuffered(in <-chan TransformResult, transformer func(models.FileData) TransformResult) <-chan TransformResult {
+func addHash(in <-chan TransformResult, transformer func(models.FileData) TransformResult) <-chan TransformResult {
 	out := make(chan TransformResult, workers)
+	wg := sync.WaitGroup{}
+
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for tr := range in {
+				r := transformer(tr.File)
+				out <- r
+			}
+		}()
+	}
 	go func() {
-		for tr := range in {
-			r := transformer(tr.File)
-			out <- r
-		}
+		wg.Wait()
 		close(out)
 	}()
 	return out
