@@ -10,7 +10,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"sync"
 	"time"
 )
 
@@ -21,9 +20,8 @@ var (
 	totalDuration time.Duration
 	totalBytes    int
 	workers       int
-	minVelocity   int
-	maxVelocity   int
-	mutex         sync.Mutex
+	minVelocity   float64
+	maxVelocity   float64
 )
 
 func init() {
@@ -36,6 +34,18 @@ func init() {
 	}
 	rootCmd.AddCommand(hashCmd)
 	hashCmd.Flags().IntP("workers", "w", 1, "Number of workers to use")
+}
+
+func addHash(in <-chan TransformResult, transformer func(models.FileData) TransformResult) <-chan TransformResult {
+	out := make(chan TransformResult)
+	go func() {
+		for tr := range in {
+			r := transformer(tr.File)
+			out <- r
+		}
+		close(out)
+	}()
+	return out
 }
 
 func generator(files []models.FileData) <-chan TransformResult {
@@ -71,39 +81,22 @@ func hashFiles(cmd *cobra.Command, args []string) {
 			fmt.Printf("final error--- %v\n", r.Err)
 		}
 	}
-	print(statusString())
 }
 
 func insertFiles(ds *database.DataStore, in <-chan TransformResult) <-chan TransformResult {
 	out := make(chan TransformResult)
 	go func() {
-		var filesToInsert []models.FileData
-		for file := range in {
-			filesToInsert = append(filesToInsert, file.File)
-			if len(filesToInsert) == workers {
-				batchInsertFiles(ds, filesToInsert, out)
-				filesToInsert = nil
+		for f := range in {
+			file, err := ds.InsertFile(f.File)
+			if err != nil {
+				log.Printf("Error inserting file: %v", err)
+				continue
 			}
-		}
-		if len(filesToInsert) > 0 {
-			batchInsertFiles(ds, filesToInsert, out)
+			out <- TransformResult{file, f.Duration, nil}
 		}
 		close(out)
 	}()
 	return out
-}
-
-func batchInsertFiles(ds *database.DataStore, files []models.FileData, out chan<- TransformResult) {
-	for _, f := range files {
-		file, err := ds.InsertFile(f)
-		if err != nil {
-			log.Printf("Error inserting file: %v", err)
-			continue
-		}
-		file, err = ds.InsertFileIdHashId(file)
-		processed++
-		out <- TransformResult{File: file, Err: err}
-	}
 }
 
 func calcHash(path string) (string, error) {
@@ -129,11 +122,24 @@ func calculate(file models.FileData) TransformResult {
 	}
 	elapsed := time.Since(st)
 	file.Hash = hash
-	mutex.Lock() // Lock the mutex before modifying shared resources file.
 	totalDuration += elapsed
 	totalBytes += int(file.Size)
-	mutex.Unlock() // Unlock the mutex after modifying
+	processed += 1
+
+	// Calculate the speed for this file and update min/max velocities
+	speed := float64(file.Size) / elapsed.Seconds() / (1024 * 1024) // Speed in MB/s for this file
+	updateVelocity(speed)
+
 	return TransformResult{file, elapsed, nil}
+}
+
+func updateVelocity(speed float64) {
+	if speed < minVelocity || minVelocity == 0 {
+		minVelocity = speed
+	}
+	if speed > maxVelocity {
+		maxVelocity = speed
+	}
 }
 
 func getTime() string {
@@ -144,39 +150,12 @@ func getVelocity() string {
 	if processed == 0 || totalDuration.Seconds() == 0 {
 		return ""
 	}
-	s := (totalBytes / (1024 * 1024)) / int(totalDuration.Seconds()) / processed
-	if s < minVelocity || minVelocity == 0 {
-		minVelocity = s
-	}
-	if s > maxVelocity {
-		maxVelocity = s
-	}
-	return fmt.Sprintf("Avg. Velocity: %d MB/s  Min. Velocity: %d MB/s  Max. Velocity: %d MB/s", s, minVelocity, maxVelocity)
+	avgSpeed := float64(totalBytes) / totalDuration.Seconds() / (1024 * 1024) // Convert bytes per second to MB/s
+	return fmt.Sprintf("Avg. Velocity: %.2f MB/s  Min. Velocity: %.2f MB/s  Max. Velocity: %.2f MB/s", avgSpeed, minVelocity, maxVelocity)
 }
 
 func statusString() string {
 	return fmt.Sprintf("\rProgress: %d of %d files %s Duration: %s", processed, fileCount, getVelocity(), getTime())
-}
-
-func addHash(in <-chan TransformResult, transformer func(models.FileData) TransformResult) <-chan TransformResult {
-	out := make(chan TransformResult, workers)
-	wg := sync.WaitGroup{}
-
-	for i := 0; i < workers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for tr := range in {
-				r := transformer(tr.File)
-				out <- r
-			}
-		}()
-	}
-	go func() {
-		wg.Wait()
-		close(out)
-	}()
-	return out
 }
 
 type TransformResult struct {
