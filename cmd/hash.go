@@ -128,9 +128,11 @@ func hashFiles(cmd *cobra.Command, args []string) {
 	for r := range c3 {
 		print(statusString())
 		if r.Err != nil {
-			fmt.Printf("final error--- %v\n", r.Err)
+			log.Printf("Error processing file %s: %v", r.File.Name, r.Err)
 		}
+		log.Printf("Processed file %s. %d bytes in %f seconds", r.File.Name, r.File.Size, r.Duration.Seconds())
 	}
+	fmt.Println("\nDone.")
 }
 
 func insertFiles(ds *database.DataStore, in <-chan TransformResult) <-chan TransformResult {
