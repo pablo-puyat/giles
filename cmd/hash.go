@@ -10,18 +10,19 @@ import (
 	"io"
 	"log"
 	"os"
+	"sync"
 	"time"
 )
 
 var (
-	fileCount     int
-	hashCmd       *cobra.Command
-	processed     int
-	totalDuration time.Duration
-	totalBytes    int
-	workers       int
-	minVelocity   float64
-	maxVelocity   float64
+	fileCount   int
+	hashCmd     *cobra.Command
+	processed   int
+	startTime   time.Time
+	totalBytes  int
+	workers     int
+	minVelocity float64
+	maxVelocity float64
 )
 
 func init() {
@@ -38,11 +39,19 @@ func init() {
 
 func addHash(in <-chan TransformResult, transformer func(models.FileData) TransformResult) <-chan TransformResult {
 	out := make(chan TransformResult)
+	wg := sync.WaitGroup{}
+	wg.Add(workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			for tr := range in {
+				r := transformer(tr.File)
+				out <- r
+			}
+			wg.Done()
+		}()
+	}
 	go func() {
-		for tr := range in {
-			r := transformer(tr.File)
-			out <- r
-		}
+		wg.Wait()
 		close(out)
 	}()
 	return out
@@ -74,7 +83,7 @@ func hashFiles(cmd *cobra.Command, args []string) {
 	c1 := generator(files)
 	c2 := addHash(c1, calculate)
 	c3 := insertFiles(ds, c2)
-
+	startTime = time.Now()
 	for r := range c3 {
 		print(statusString())
 		if r.Err != nil {
@@ -122,11 +131,9 @@ func calculate(file models.FileData) TransformResult {
 	}
 	elapsed := time.Since(st)
 	file.Hash = hash
-	totalDuration += elapsed
 	totalBytes += int(file.Size)
 	processed += 1
 
-	// Calculate the speed for this file and update min/max velocities
 	speed := float64(file.Size) / elapsed.Seconds() / (1024 * 1024) // Speed in MB/s for this file
 	updateVelocity(speed)
 
@@ -143,15 +150,15 @@ func updateVelocity(speed float64) {
 }
 
 func getTime() string {
-	return fmt.Sprintf("%d seconds", int(totalDuration.Seconds()))
+	return fmt.Sprintf("%d seconds", int(time.Now().Sub(startTime).Seconds()))
 }
 
 func getVelocity() string {
-	if processed == 0 || totalDuration.Seconds() == 0 {
+	if processed == 0 {
 		return ""
 	}
-	avgSpeed := float64(totalBytes) / totalDuration.Seconds() / (1024 * 1024) // Convert bytes per second to MB/s
-	return fmt.Sprintf("Avg. Velocity: %.2f MB/s  Min. Velocity: %.2f MB/s  Max. Velocity: %.2f MB/s", avgSpeed, minVelocity, maxVelocity)
+	avgSpeed := float64(totalBytes) / time.Now().Sub(startTime).Seconds() / (1024 * 1024) // Convert bytes per second to MB/s
+	return fmt.Sprintf("Avg. Velocity: %.0f MB/s  Min. Velocity: %.0f MB/s  Max. Velocity: %.0f MB/s", avgSpeed, minVelocity, maxVelocity)
 }
 
 func statusString() string {
