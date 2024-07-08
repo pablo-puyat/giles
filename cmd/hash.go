@@ -35,6 +35,7 @@ func init() {
 	}
 	rootCmd.AddCommand(hashCmd)
 	hashCmd.Flags().IntP("workers", "w", 1, "Number of workers to use")
+
 }
 
 func addHash(in <-chan TransformResult, transformer func(models.FileData) TransformResult) <-chan TransformResult {
@@ -44,6 +45,10 @@ func addHash(in <-chan TransformResult, transformer func(models.FileData) Transf
 	for i := 0; i < workers; i++ {
 		go func() {
 			for tr := range in {
+				if tr.Err != nil {
+					out <- tr
+					continue
+				}
 				r := transformer(tr.File)
 				out <- r
 			}
@@ -61,6 +66,7 @@ func calculate(file models.FileData) TransformResult {
 	st := time.Now()
 	hash, err := calculateHash(file.Path)
 	if err != nil {
+		log.Printf("Error calculating hash: %v\n", err)
 		return TransformResult{file, 0, err}
 	}
 	elapsed := time.Since(st)
@@ -74,14 +80,14 @@ func calculate(file models.FileData) TransformResult {
 func calculateHash(path string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		log.Printf("Error opening file: \"%v\"", err)
+		log.Printf("Error opening file: %v\n", err)
 		return "", err
 	}
 	defer f.Close()
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
-		log.Fatalf("Error hashing file: \"%v\"", err)
+		log.Printf("Error hashing file: %v\n", err)
 	}
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
@@ -110,12 +116,19 @@ func getVelocity() string {
 }
 
 func hashFiles(cmd *cobra.Command, args []string) {
+	l, err := os.OpenFile("logfile.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalf("Failed to open log file: %v", err)
+	}
+	defer l.Close()
+	log.SetOutput(l)
+
 	workers, _ = cmd.Flags().GetInt("workers")
 
 	ds := database.NewDataStore()
 	files, err := ds.GetFilesWithoutHash()
 	if err != nil {
-		log.Printf("Error with query: %v", err)
+		log.Printf("Error with query: %v\n", err)
 		return
 	}
 	fileCount = len(files)
@@ -128,9 +141,8 @@ func hashFiles(cmd *cobra.Command, args []string) {
 	for r := range c3 {
 		print(statusString())
 		if r.Err != nil {
-			log.Printf("Error processing file %s: %v", r.File.Name, r.Err)
+			log.Printf("Error processing file %s: %v\n", r.File.Name, r.Err)
 		}
-		log.Printf("Processed file %s. %d bytes in %f seconds", r.File.Name, r.File.Size, r.Duration.Seconds())
 	}
 	fmt.Println("\nDone.")
 }
@@ -140,6 +152,10 @@ func insertFiles(ds *database.DataStore, in <-chan TransformResult) <-chan Trans
 	go func() {
 		var filesToProcess = make([]models.FileData, 0, workers)
 		for tr := range in {
+			if tr.Err != nil {
+				out <- tr
+				continue
+			}
 			filesToProcess = append(filesToProcess, tr.File)
 			if len(filesToProcess) >= workers/2 {
 				processFiles(ds, &filesToProcess)
