@@ -152,13 +152,20 @@ func updateVelocity(speed float64) {
 func getTime() string {
 	return fmt.Sprintf("%d seconds", int(time.Now().Sub(startTime).Seconds()))
 }
-
 func getVelocity() string {
 	if processed == 0 {
 		return ""
 	}
-	avgSpeed := float64(totalBytes) / time.Now().Sub(startTime).Seconds() / (1024 * 1024) // Convert bytes per second to MB/s
-	return fmt.Sprintf("Avg. Velocity: %.0f MB/s  Min. Velocity: %.0f MB/s  Max. Velocity: %.0f MB/s", avgSpeed, minVelocity, maxVelocity)
+	// Calculate avgSpeed in MB/s
+	avgSpeedMB := float64(totalBytes) / time.Now().Sub(startTime).Seconds() / (1024 * 1024) // Convert bytes per second to MB/s
+
+	if avgSpeedMB <= 0.50 {
+		// Calculate avgSpeed in KB/s
+		avgSpeedKB := float64(totalBytes) / time.Now().Sub(startTime).Seconds() / 1024 // Convert bytes per second to KB/s
+		return fmt.Sprintf("Avg. Velocity: %.0f KB/s  Min. Velocity: %.0f KB/s  Max. Velocity: %.0f KB/s", avgSpeedKB, minVelocity/1024, maxVelocity/1024)
+	}
+
+	return fmt.Sprintf("Avg. Velocity: %.0f MB/s  Min. Velocity: %.0f MB/s  Max. Velocity: %.0f MB/s", avgSpeedMB, minVelocity, maxVelocity)
 }
 
 func statusString() string {
