@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -22,6 +23,7 @@ var (
 	workers       int
 	minVelocity   int
 	maxVelocity   int
+	mutex         sync.Mutex
 )
 
 func init() {
@@ -36,31 +38,6 @@ func init() {
 	hashCmd.Flags().IntP("workers", "w", 1, "Number of workers to use")
 }
 
-func hashFiles(cmd *cobra.Command, args []string) {
-	workers, _ = cmd.Flags().GetInt("workers")
-
-	ds := database.NewDataStore()
-	files, err := ds.GetFilesWithoutHash()
-	if err != nil {
-		log.Printf("Error with query: %v", err)
-		return
-	}
-	fileCount = len(files)
-	fmt.Printf("Calculating hash for %d files\n", fileCount)
-
-	c1 := generator(files)
-	c2 := transformBuffered(c1, calculate)
-	c3 := insertFiles(ds, c2)
-
-	for r := range c3 {
-		getStatus()
-		if r.Err != nil {
-			fmt.Printf("final error--- %v\n", r.Err)
-		}
-	}
-	print("\rDone. \n\nProcessed ", len(files), " files\n")
-}
-
 func generator(files []models.FileData) <-chan TransformResult {
 	out := make(chan TransformResult)
 	go func() {
@@ -72,16 +49,29 @@ func generator(files []models.FileData) <-chan TransformResult {
 	return out
 }
 
-func transformBuffered(in <-chan TransformResult, transformer func(models.FileData) (models.FileData, error)) <-chan TransformResult {
-	out := make(chan TransformResult, workers)
-	go func() {
-		for tr := range in {
-			file, err := transformer(tr.File)
-			out <- TransformResult{File: file, Err: err}
+func hashFiles(cmd *cobra.Command, args []string) {
+	workers, _ = cmd.Flags().GetInt("workers")
+
+	ds := database.NewDataStore()
+	files, err := ds.GetFilesWithoutHash()
+	if err != nil {
+		log.Printf("Error with query: %v", err)
+		return
+	}
+	fileCount = len(files)
+	fmt.Printf("Processing %d files with %d workers\n", fileCount, workers)
+
+	c1 := generator(files)
+	c2 := transformBuffered(c1, calculate)
+	c3 := insertFiles(ds, c2)
+
+	for r := range c3 {
+		print(statusString())
+		if r.Err != nil {
+			fmt.Printf("final error--- %v\n", r.Err)
 		}
-		close(out)
-	}()
-	return out
+	}
+	print(statusString())
 }
 
 func insertFiles(ds *database.DataStore, in <-chan TransformResult) <-chan TransformResult {
@@ -116,20 +106,6 @@ func batchInsertFiles(ds *database.DataStore, files []models.FileData, out chan<
 	}
 }
 
-func calculate(file models.FileData) (models.FileData, error) {
-	st := time.Now()
-	hash, err := calcHash(file.Path)
-	if err != nil {
-		return file, err
-	}
-	file.Hash = hash
-	elapsed := time.Since(st)
-	totalDuration += elapsed
-	totalBytes += int(file.Size)
-	getStatus()
-	return file, nil
-}
-
 func calcHash(path string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -145,12 +121,19 @@ func calcHash(path string) (string, error) {
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
-func getStatus() {
-	fmt.Printf("\rProgress: %d of %d files   %s   Duration: %s", processed, fileCount, getVelocity(), getTime())
-}
-
-func getSize() string {
-	return fmt.Sprintf("%d MB", totalBytes/(1024*1024))
+func calculate(file models.FileData) TransformResult {
+	st := time.Now()
+	hash, err := calcHash(file.Path)
+	if err != nil {
+		return TransformResult{file, 0, err}
+	}
+	elapsed := time.Since(st)
+	file.Hash = hash
+	mutex.Lock() // Lock the mutex before modifying shared resources file.
+	totalDuration += elapsed
+	totalBytes += int(file.Size)
+	mutex.Unlock() // Unlock the mutex after modifying
+	return TransformResult{file, elapsed, nil}
 }
 
 func getTime() string {
@@ -161,17 +144,34 @@ func getVelocity() string {
 	if processed == 0 {
 		return ""
 	}
-	s := totalBytes / (1024 * 1024) / int(totalDuration.Seconds())
+	s := (totalBytes / (1024 * 1024)) / int(totalDuration.Seconds()) / processed
 	if s < minVelocity || minVelocity == 0 {
 		minVelocity = s
 	}
 	if s > maxVelocity {
 		maxVelocity = s
 	}
-	return fmt.Sprintf("Velocity: %d MB/s  Min. Velocity: %d MB/s  Max. Velocity: %d MB/s", s, minVelocity, maxVelocity)
+	return fmt.Sprintf("Avg. Velocity: %d MB/s  Min. Velocity: %d MB/s  Max. Velocity: %d MB/s", s, minVelocity, maxVelocity)
+}
+
+func statusString() string {
+	return fmt.Sprintf("\rProgress: %d of %d files %s Duration: %s", processed, fileCount, getVelocity(), getTime())
+}
+
+func transformBuffered(in <-chan TransformResult, transformer func(models.FileData) TransformResult) <-chan TransformResult {
+	out := make(chan TransformResult, workers)
+	go func() {
+		for tr := range in {
+			r := transformer(tr.File)
+			out <- r
+		}
+		close(out)
+	}()
+	return out
 }
 
 type TransformResult struct {
-	File models.FileData
-	Err  error
+	File     models.FileData
+	Duration time.Duration
+	Err      error
 }
