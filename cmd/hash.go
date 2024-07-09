@@ -14,15 +14,19 @@ import (
 	"time"
 )
 
+type TransformResult struct {
+	File     models.FileData
+	Duration time.Duration
+	Err      error
+}
+
 var (
-	fileCount   int
-	hashCmd     *cobra.Command
-	processed   int
-	startTime   time.Time
-	totalBytes  int
-	workers     int
-	minVelocity float64
-	maxVelocity float64
+	fileCount  int
+	hashCmd    *cobra.Command
+	processed  int
+	startTime  time.Time
+	totalBytes int
+	workers    int
 )
 
 func init() {
@@ -36,6 +40,37 @@ func init() {
 	rootCmd.AddCommand(hashCmd)
 	hashCmd.Flags().IntP("workers", "w", 1, "Number of workers to use")
 
+}
+
+func hashFiles(cmd *cobra.Command, args []string) {
+	logFile, err := setupLogging()
+	if err != nil {
+		log.Fatalf("Failed to open log file: %v", err)
+	}
+	defer logFile.Close()
+
+	workers, _ = cmd.Flags().GetInt("workers")
+
+	ds := database.NewDataStore()
+	files, err := ds.GetFilesWithoutHash()
+	if err != nil {
+		log.Printf("Error with query: %v\n", err)
+		return
+	}
+	fileCount = len(files)
+	fmt.Printf("Processing %d files with %d workers\n", fileCount, workers)
+
+	c1 := generator(files)
+	c2 := addHash(c1, calculate)
+	c3 := insertFiles(ds, c2)
+	startTime = time.Now()
+	for r := range c3 {
+		print(statusString())
+		if r.Err != nil {
+			log.Printf("Error processing file %s: %v\n", r.File.Name, r.Err)
+		}
+	}
+	fmt.Println("\nDone.")
 }
 
 func addHash(in <-chan TransformResult, transformer func(models.FileData) TransformResult) <-chan TransformResult {
@@ -115,38 +150,6 @@ func getVelocity() string {
 	return fmt.Sprintf("Velocity: %.0f MB/s", v)
 }
 
-func hashFiles(cmd *cobra.Command, args []string) {
-	l, err := os.OpenFile("logfile.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		log.Fatalf("Failed to open log file: %v", err)
-	}
-	defer l.Close()
-	log.SetOutput(l)
-
-	workers, _ = cmd.Flags().GetInt("workers")
-
-	ds := database.NewDataStore()
-	files, err := ds.GetFilesWithoutHash()
-	if err != nil {
-		log.Printf("Error with query: %v\n", err)
-		return
-	}
-	fileCount = len(files)
-	fmt.Printf("Processing %d files with %d workers\n", fileCount, workers)
-
-	c1 := generator(files)
-	c2 := addHash(c1, calculate)
-	c3 := insertFiles(ds, c2)
-	startTime = time.Now()
-	for r := range c3 {
-		print(statusString())
-		if r.Err != nil {
-			log.Printf("Error processing file %s: %v\n", r.File.Name, r.Err)
-		}
-	}
-	fmt.Println("\nDone.")
-}
-
 func insertFiles(ds *database.DataStore, in <-chan TransformResult) <-chan TransformResult {
 	out := make(chan TransformResult)
 	go func() {
@@ -176,12 +179,14 @@ func insertFiles(ds *database.DataStore, in <-chan TransformResult) <-chan Trans
 	return out
 }
 
-func statusString() string {
-	return fmt.Sprintf("\rProgress: %d of %d files %s Duration: %s", processed, fileCount, getVelocity(), getTime())
+func setupLogging() (*os.File, error) {
+	logFile, err := os.OpenFile("logfile.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err == nil {
+		log.SetOutput(logFile)
+	}
+	return logFile, err
 }
 
-type TransformResult struct {
-	File     models.FileData
-	Duration time.Duration
-	Err      error
+func statusString() string {
+	return fmt.Sprintf("\rProgress: %d of %d files %s Duration: %s", processed, fileCount, getVelocity(), getTime())
 }
