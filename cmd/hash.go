@@ -158,27 +158,22 @@ func insertFiles(ds *database.DataStore, in <-chan TransformResult) <-chan Trans
 			}
 			filesToProcess = append(filesToProcess, tr.File)
 			if len(filesToProcess) >= workers/2 {
-				processFiles(ds, &filesToProcess)
+				err := ds.InsertHash(filesToProcess)
+				if err != nil {
+					tr.Err = err
+				}
 			}
 			out <- tr
 		}
 		if len(filesToProcess) > 0 {
-			processFiles(ds, &filesToProcess)
+			err := ds.InsertHash(filesToProcess)
+			if err != nil {
+				log.Printf("Error inserting hash: %v\n", err)
+			}
 		}
 		close(out)
 	}()
 	return out
-}
-
-func processFiles(ds *database.DataStore, filesToProcess *[]models.FileData) {
-	for _, f := range *filesToProcess {
-		if g, err := ds.InsertFile(f); err == nil {
-			if _, err = ds.InsertFileIdHashId(g); err == nil {
-				print(statusString())
-			}
-		}
-	}
-	*filesToProcess = nil
 }
 
 func statusString() string {

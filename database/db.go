@@ -9,12 +9,11 @@ import (
 )
 
 const (
-	FilesWithoutHashSql   = "SELECT id, files.path, size FROM files LEFT JOIN files_hashes ON files.id = files_hashes.file_id WHERE files_hashes.file_id IS NULL"
-	InserFileSql          = "INSERT OR IGNORE INTO files (name, path, size) VALUES (?, ?, ?)"
-	InsertFileIdHashIdSql = "INSERT INTO files_hashes (file_id, hash_id) VALUES (?, ?)"
-	InsertHashSql         = "INSERT OR IGNORE INTO hashes (hash) VALUES (?);"
-	DuplicatesSql         = "SELECT files.* FROM comic_files_hashes cfh, files WHERE cfh.hash_id in (select hash_id from comic_files_duplicates) AND cfh.file_id = files.id ORDER BY hash;"
-	SingleDuplicateSql    = "select path, name from files where id in (select file_id from comic_files where file_id not in (SELECT min(file_id) file_id from comic_files_hashes where hash_id in (select hash_id from comic_files_duplicates) group by hash_id order by hash_id))order by name;"
+	FilesWithoutHashSql = "SELECT id, files.path, size FROM files WHERE hash IS NULL"
+	InsertFileSql       = "INSERT OR IGNORE INTO files (name, path, size) VALUES (?, ?, ?)"
+	AddHashSql          = "UPDATE files set hash = ? WHERE id = ?"
+	DuplicatesSql       = "SELECT files.* FROM comic_files_hashes cfh, files WHERE cfh.hash_id in (select hash_id from comic_files_duplicates) AND cfh.file_id = files.id ORDER BY hash;"
+	SingleDuplicateSql  = "select path, name from files where id in (select file_id from comic_files where file_id not in (SELECT min(file_id) file_id from comic_files_hashes where hash_id in (select hash_id from comic_files_duplicates) group by hash_id order by hash_id))order by name;"
 )
 
 var (
@@ -86,44 +85,33 @@ func (ds *DataStore) GetFilesWithoutHash() (files []models.FileData, err error) 
 }
 
 func (ds *DataStore) InsertFile(file models.FileData) (models.FileData, error) {
-	_, err := ds.DB.Exec(InserFileSql, file.Name, file.Path, file.Size)
+	_, err := ds.DB.Exec(InsertFileSql, file.Name, file.Path, file.Size)
 	if err != nil {
 		log.Printf("Error inserting file: %v", err)
 	}
 	return file, err
 }
 
-func (ds *DataStore) InsertFileIdHashId(file models.FileData) (models.FileData, error) {
-	_, err := ds.DB.Exec(InsertFileIdHashIdSql, file.Id, file.HashId)
+func (ds *DataStore) InsertHash(files []models.FileData) error {
+	tx, err := ds.DB.Begin()
 	if err != nil {
-		log.Printf("Error inserting file and hash id: %v", err)
+		log.Printf("Error starting transaction: %v", err)
+		return err
 	}
-	return file, err
-}
 
-func (ds *DataStore) InsertHash(file models.FileData) (models.FileData, error) {
-	result, err := ds.DB.Exec(InsertHashSql, file.Hash)
-	if err != nil {
-		log.Fatalf("Error inserting hash: %v", err)
-	}
-	l, err := result.LastInsertId()
-	if err != nil {
-		log.Fatalf("Error inserting hash: %v", err)
-	}
-	if l == 0 {
-		rows, err := ds.DB.Query("SELECT id FROM hashes WHERE hash = ?", file.Hash)
+	for _, f := range files {
+		_, err := tx.Exec(AddHashSql, f.Hash, f.Id)
 		if err != nil {
-			log.Fatalf("Error querying hash: %v", err)
+			tx.Rollback()
+			log.Printf("Error adding hash: %v", err)
+			return err
 		}
-		defer rows.Close()
-		for rows.Next() {
-			err := rows.Scan(&file.HashId)
-			if err != nil {
-				log.Fatalf("Error scanning hash: %v", err)
-			}
-		}
-	} else {
-		file.HashId = l
 	}
-	return file, err
+
+	if err := tx.Commit(); err != nil {
+		log.Printf("Error committing transaction: %v", err)
+		return err
+	}
+
+	return err
 }
