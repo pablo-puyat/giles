@@ -10,14 +10,17 @@ func createTables(db *sql.DB) {
 			id INTEGER PRIMARY KEY,
 			hash TEXT,
 			name TEXT,
-			path TEXT UNIQUE,
+			path TEXT,
 			size INTEGER,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`)
+
 	if err != nil {
 		panic(fmt.Errorf("error creating table: %v", err))
 	}
+
+	_, err = db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_files_path_name ON files (path, name)`)
 
 	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS file_types (
 			id INTEGER PRIMARY KEY,
