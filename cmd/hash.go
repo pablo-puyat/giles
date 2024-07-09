@@ -161,16 +161,14 @@ func insertFiles(ds *database.DataStore, in <-chan TransformResult) <-chan Trans
 			}
 			filesToProcess = append(filesToProcess, tr.File)
 			if len(filesToProcess) >= workers/2 {
-				err := ds.InsertHash(filesToProcess)
-				if err != nil {
+				if err := ds.InsertHash(filesToProcess); err != nil {
 					tr.Err = err
 				}
 			}
 			out <- tr
 		}
 		if len(filesToProcess) > 0 {
-			err := ds.InsertHash(filesToProcess)
-			if err != nil {
+			if err := ds.InsertHash(filesToProcess); err != nil {
 				log.Printf("Error inserting hash: %v\n", err)
 			}
 		}
