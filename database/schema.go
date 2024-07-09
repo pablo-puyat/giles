@@ -19,25 +19,6 @@ func createTables(db *sql.DB) {
 		panic(fmt.Errorf("error creating table: %v", err))
 	}
 
-	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS hashes (
-			id INTEGER PRIMARY KEY,
-			hash TEXT UNIQUE
-		)`)
-	if err != nil {
-		panic(fmt.Errorf("error creating table: %v", err))
-	}
-
-	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS files_hashes (
-			file_id INTEGER,
-			hash_id INTEGER,
-			PRIMARY KEY (file_id, hash_id),
-			FOREIGN KEY (file_id) REFERENCES files(id),
-			FOREIGN KEY (hash_id) REFERENCES hashes(id)
-		)`)
-	if err != nil {
-		panic(fmt.Errorf("error creating table: %v", err))
-	}
-
 	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS file_types (
 			id INTEGER PRIMARY KEY,
 			type TEXT UNIQUE
