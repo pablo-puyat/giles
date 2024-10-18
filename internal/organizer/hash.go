@@ -1,7 +1,6 @@
 package organizer
 
 import (
-	"fmt"
 	"giles/models"
 )
 
@@ -13,9 +12,15 @@ type Organizer struct {
 	sourceDir string
 }
 
-func (ds *Organizer) OrganizeFiles(files []models.FileData, destinationDir string) {
-	for _, file := range files {
-		fmt.Printf("%s", file.Name)
+func (ds *Organizer) OrganizeFiles(files []models.FileData, destination string) []models.FileData {
+	for i, file := range files {
+		n := 2
+		if len(file.Hash) < n {
+			n = len(file.Hash)
+		}
+		directory := file.Hash[:n]
+		files[i].Name = file.Hash
+		files[i].Path = destination + "/" + directory
 	}
-	fmt.Printf("%s", destinationDir)
+	return files
 }

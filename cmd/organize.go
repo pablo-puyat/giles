@@ -5,9 +5,8 @@ import (
 	"giles/database"
 	"giles/internal/organizer"
 	"giles/models"
-	"log"
-
 	"github.com/spf13/cobra"
+	"log"
 )
 
 var (
@@ -49,19 +48,23 @@ func runOrganize() error {
 }
 
 func organizeFiles(files []models.FileData, organizer *organizer.Organizer) error {
-	fmt.Printf("Organizing %d files\n", len(files))
-
-	// Organize the files
-	organizer.OrganizeFiles(files, destination)
+	organized := organizer.OrganizeFiles(files, destination)
+	fmt.Printf("Organizing %d files\n", len(organized))
+	//newPath := generateNewPath(file.Path) // Implement this function based on your renaming logic
+	//err := os.Rename(file.Path, newPath)
+	//if err != nil {
+	//	return nil, fmt.Errorf("failed to rename file %s: %w", file.Path, err)
+	//}
+	//files[i].Path = newPath
 	//TODO: batch these calls
-	/*
-		for _, file := range organizedFiles {
-			err = db.UpdateFileLocation(file.ID, file.Path)
-			if err != nil {
-				return fmt.Errorf("failed to update location for file %s: %w", file.ID, err)
-			}
-		}
-	*/
+	for _, file := range organized {
+		//fmt.Println(file.Name)
+		fmt.Println(file.Path)
+		//err = db.UpdateFileLocation(file.ID, file.Path)
+		//if err != nil {
+		//	return fmt.Errorf("failed to update location for file %s: %w", file.ID, err)
+		//}
+	}
 
 	fmt.Println("All files organized and database updated")
 	return nil
