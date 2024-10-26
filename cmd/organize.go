@@ -57,14 +57,14 @@ func organizeFiles(files []models.FileData, organizer *organizer.Organizer) erro
 	//}
 	//files[i].Path = newPath
 	//TODO: batch these calls
-	for _, file := range organized {
-		//fmt.Println(file.Name)
-		fmt.Println(file.Path)
-		//err = db.UpdateFileLocation(file.ID, file.Path)
-		//if err != nil {
-		//	return fmt.Errorf("failed to update location for file %s: %w", file.ID, err)
-		//}
-	}
+	//for _, file := range organized {
+	//fmt.Println(file.Name)
+	//fmt.Println(file.Path)
+	//err = db.UpdateFileLocation(file.ID, file.Path)
+	//if err != nil {
+	//	return fmt.Errorf("failed to update location for file %s: %w", file.ID, err)
+	//}
+	//}
 
 	fmt.Println("All files organized and database updated")
 	return nil

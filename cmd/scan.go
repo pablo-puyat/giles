@@ -4,6 +4,7 @@ import (
 	"giles/database"
 	"giles/models"
 	"github.com/spf13/cobra"
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -26,6 +27,11 @@ Usage: giles scan <directory>`,
 		}
 		scanDir(dirPath)
 	},
+}
+
+type Progress struct {
+	totalFiles   int64
+	scannedFiles int64
 }
 
 func init() {
@@ -58,4 +64,18 @@ func scanDir(path string) {
 	if err != nil {
 		log.Fatalf("Error scanning directory: %v", err)
 	}
+}
+
+func countFiles(root string) (int64, error) {
+	var count int64
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			count++
+		}
+		return nil
+	})
+	return count, err
 }

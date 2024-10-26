@@ -26,17 +26,17 @@ func (ds *Organizer) OrganizeFiles(files []models.FileData, destination string) 
 		files[i].Path = destination + "/" + directory
 		newName := files[i].Path + files[i].Name
 		// verify that source files exists
-
+		println(newName)
 		// check if directory exists and create if it doesn't
-		if _, err := os.Stat("data/csv_data"); os.IsNotExist(err) {
-			err := os.MkdirAll("data/json_data", 0755)
-			if err != nil {
-				fmt.Println(err)
-			}
-			fmt.Println("Directory Created Successfully")
-		} else {
-			fmt.Println("Directory exists")
-		}
+		//if _, err := os.Stat("data/csv_data"); os.IsNotExist(err) {
+		//	err := os.MkdirAll("data/json_data", 0755)
+		//	if err != nil {
+		//		fmt.Println(err)
+		//	}
+		//	fmt.Println("Directory Created Successfully")
+		//} else {
+		//	fmt.Println("Directory exists")
+		//}
 		// copy file
 		//copyFile(files[i].Path + files[i].Name)
 		// verify that file exists in new location
