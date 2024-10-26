@@ -2,9 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"giles/database"
+	"giles/internal/database"
 	"giles/internal/organizer"
-	"giles/models"
 	"github.com/spf13/cobra"
 	"log"
 )
@@ -35,7 +34,10 @@ func init() {
 }
 
 func runOrganize() error {
-	ds := database.NewDataStore()
+	ds, err := database.NewDataStore()
+	if err != nil {
+		return fmt.Errorf("trouble getting list of files: %w", err)
+	}
 
 	files, err := ds.GetFilesFrom(source)
 	if err != nil {
@@ -47,7 +49,7 @@ func runOrganize() error {
 	return organizeFiles(files, hashOrganizer)
 }
 
-func organizeFiles(files []models.FileData, organizer *organizer.Organizer) error {
+func organizeFiles(files []database.FileData, organizer *organizer.Organizer) error {
 	organized := organizer.OrganizeFiles(files, destination)
 	fmt.Printf("Organizing %d files\n", len(organized))
 	//newPath := generateNewPath(file.Path) // Implement this function based on your renaming logic

@@ -1,4 +1,4 @@
-package models
+package database
 
 type FileData struct {
 	Id     int

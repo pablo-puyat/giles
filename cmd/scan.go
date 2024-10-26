@@ -1,15 +1,12 @@
 package cmd
 
 import (
-	"giles/database"
-	"giles/models"
-	"github.com/spf13/cobra"
-	"io/fs"
-	"log"
-	"os"
-	"path/filepath"
-
+	"fmt"
+	"giles/internal/database"
+	"giles/internal/scanner"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/spf13/cobra"
+	"log"
 )
 
 var scanCmd = &cobra.Command{
@@ -39,43 +36,27 @@ func init() {
 }
 
 func scanDir(path string) {
-	dbManager := database.NewDataStore()
-	err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			log.Printf("Error walking path: \"%v\"", err)
-		}
-
-		if info.IsDir() {
-			return nil
-		}
-		fileData := models.FileData{
-			Name: info.Name(),
-			Path: path,
-			Size: info.Size(),
-		}
-
-		_, err = dbManager.InsertFile(fileData)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
+	store, err := database.NewDataStore()
 	if err != nil {
-		log.Fatalf("Error scanning directory: %v", err)
+		log.Fatalf("Error accessing database")
 	}
-}
 
-func countFiles(root string) (int64, error) {
-	var count int64
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if !d.IsDir() {
-			count++
-		}
-		return nil
-	})
-	return count, err
+	s := scanner.New()
+
+	fmt.Println("Counting files...")
+	if err := s.CountFiles(path); err != nil {
+		log.Fatalf("Error while counting files")
+	}
+
+	done := make(chan bool)
+	go s.DisplayProgress(done)
+
+	s.WaitGroup.Add(1)
+	go worker.BatchProcessor(store, s.FilesChange, &s.WaitGroup)
+
+	if err := s.ScanFiles(*rootDir); err != nil {
+		log.Println("An error occured while scanning files.")
+	}
+	close(s.FilesChan)
+	s.WaitGroup.Wait()
 }

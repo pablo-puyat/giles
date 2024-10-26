@@ -3,8 +3,7 @@ package cmd
 import (
 	"crypto/sha256"
 	"fmt"
-	"giles/database"
-	"giles/models"
+	"giles/internal/database"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/cobra"
 	"io"
@@ -15,7 +14,7 @@ import (
 )
 
 type TransformResult struct {
-	File     models.FileData
+	File     database.FileData
 	Duration time.Duration
 	Err      error
 }
@@ -51,7 +50,12 @@ func hashFiles(cmd *cobra.Command, args []string) {
 
 	workers, _ = cmd.Flags().GetInt("workers")
 
-	ds := database.NewDataStore()
+	ds, err := database.NewDataStore()
+	if err != nil {
+		log.Printf("Error with query: %v\n", err)
+		return
+	}
+
 	files, err := ds.GetFilesWithoutHash()
 	if err != nil {
 		log.Printf("Error with query: %v\n", err)
@@ -73,7 +77,7 @@ func hashFiles(cmd *cobra.Command, args []string) {
 	fmt.Println("\nDone.")
 }
 
-func addHash(in <-chan TransformResult, transformer func(models.FileData) TransformResult) <-chan TransformResult {
+func addHash(in <-chan TransformResult, transformer func(database.FileData) TransformResult) <-chan TransformResult {
 	out := make(chan TransformResult, workers)
 	wg := sync.WaitGroup{}
 	wg.Add(workers)
@@ -97,7 +101,7 @@ func addHash(in <-chan TransformResult, transformer func(models.FileData) Transf
 	return out
 }
 
-func calculate(file models.FileData) TransformResult {
+func calculate(file database.FileData) TransformResult {
 	st := time.Now()
 	hash, err := calculateHash(file.Path)
 	if err != nil {
@@ -127,7 +131,7 @@ func calculateHash(path string) (string, error) {
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
-func generator(files []models.FileData) <-chan TransformResult {
+func generator(files []database.FileData) <-chan TransformResult {
 	out := make(chan TransformResult)
 	go func() {
 		for _, f := range files {
@@ -153,7 +157,7 @@ func getVelocity() string {
 func insertFiles(ds *database.DataStore, in <-chan TransformResult) <-chan TransformResult {
 	out := make(chan TransformResult)
 	go func() {
-		var filesToProcess = make([]models.FileData, 0, workers)
+		var filesToProcess = make([]database.FileData, 0, workers)
 		for tr := range in {
 			if tr.Err != nil {
 				out <- tr

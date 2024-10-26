@@ -2,7 +2,7 @@ package organizer
 
 import (
 	"fmt"
-	"giles/models"
+	"giles/internal/database"
 	"io"
 	"os"
 )
@@ -15,7 +15,7 @@ type Organizer struct {
 	sourceDir string
 }
 
-func (ds *Organizer) OrganizeFiles(files []models.FileData, destination string) []models.FileData {
+func (ds *Organizer) OrganizeFiles(files []database.FileData, destination string) []database.FileData {
 	for i, file := range files {
 		n := 2
 		if len(file.Hash) < n {
