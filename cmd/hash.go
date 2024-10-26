@@ -14,7 +14,7 @@ import (
 )
 
 type TransformResult struct {
-	File     database.FileData
+	File     database.File
 	Duration time.Duration
 	Err      error
 }
@@ -77,7 +77,7 @@ func hashFiles(cmd *cobra.Command, args []string) {
 	fmt.Println("\nDone.")
 }
 
-func addHash(in <-chan TransformResult, transformer func(database.FileData) TransformResult) <-chan TransformResult {
+func addHash(in <-chan TransformResult, transformer func(database.File) TransformResult) <-chan TransformResult {
 	out := make(chan TransformResult, workers)
 	wg := sync.WaitGroup{}
 	wg.Add(workers)
@@ -101,7 +101,7 @@ func addHash(in <-chan TransformResult, transformer func(database.FileData) Tran
 	return out
 }
 
-func calculate(file database.FileData) TransformResult {
+func calculate(file database.File) TransformResult {
 	st := time.Now()
 	hash, err := calculateHash(file.Path)
 	if err != nil {
@@ -131,7 +131,7 @@ func calculateHash(path string) (string, error) {
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
-func generator(files []database.FileData) <-chan TransformResult {
+func generator(files []database.File) <-chan TransformResult {
 	out := make(chan TransformResult)
 	go func() {
 		for _, f := range files {
@@ -157,7 +157,7 @@ func getVelocity() string {
 func insertFiles(ds *database.FileStore, in <-chan TransformResult) <-chan TransformResult {
 	out := make(chan TransformResult)
 	go func() {
-		var filesToProcess = make([]database.FileData, 0, workers)
+		var filesToProcess = make([]database.File, 0, workers)
 		for tr := range in {
 			if tr.Err != nil {
 				out <- tr

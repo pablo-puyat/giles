@@ -5,7 +5,7 @@ import (
 	"log"
 )
 
-func (fs *FileStore) GetDuplicates() (files []FileData, err error) {
+func (fs *FileStore) GetDuplicates() (files []File, err error) {
 	rows, err := fs.db.Query(`
 		SELECT files.* 
 		FROM comic_files_hashes cfh, files 
@@ -23,7 +23,7 @@ func (fs *FileStore) GetDuplicates() (files []FileData, err error) {
 	}(rows)
 
 	for rows.Next() {
-		var file FileData
+		var file File
 		err := rows.Scan(&file.Id, &file.Path, &file.Name, &file.Size)
 		if err != nil {
 			return nil, err
@@ -38,7 +38,7 @@ func (fs *FileStore) GetDuplicates() (files []FileData, err error) {
 	return files, err
 }
 
-func (fs *FileStore) GetFilesWithoutHash() (files []FileData, err error) {
+func (fs *FileStore) GetFilesWithoutHash() (files []File, err error) {
 	rows, err := fs.db.Query(`SELECT id, files.path, size FROM files WHERE hash IS NULL;`)
 	if err != nil {
 		return nil, err
@@ -46,7 +46,7 @@ func (fs *FileStore) GetFilesWithoutHash() (files []FileData, err error) {
 	defer rows.Close()
 
 	for rows.Next() {
-		var file FileData
+		var file File
 		err := rows.Scan(&file.Id, &file.Path, &file.Size)
 		if err != nil {
 			return nil, err
@@ -60,7 +60,7 @@ func (fs *FileStore) GetFilesWithoutHash() (files []FileData, err error) {
 	return files, err
 }
 
-func (fs *FileStore) GetFilesFrom(source string) (files []FileData, err error) {
+func (fs *FileStore) GetFilesFrom(source string) (files []File, err error) {
 	rows, err := fs.db.Query("SELECT id, path, size, hash FROM files WHERE path LIKE ?", source+"%")
 	if err != nil {
 		return nil, err
@@ -73,7 +73,7 @@ func (fs *FileStore) GetFilesFrom(source string) (files []FileData, err error) {
 	}(rows)
 
 	for rows.Next() {
-		var file FileData
+		var file File
 		err := rows.Scan(&file.Id, &file.Path, &file.Size, &file.Hash)
 		if err != nil {
 			return nil, err
@@ -89,7 +89,7 @@ func (fs *FileStore) GetFilesFrom(source string) (files []FileData, err error) {
 	return files, err
 }
 
-func (fs *FileStore) InsertFile(file FileData) (FileData, error) {
+func (fs *FileStore) InsertFile(file File) (File, error) {
 	_, err := fs.db.Exec(` INSERT OR IGNORE INTO files (name, path, size) VALUES (?, ?, ?);`, file.Name, file.Path, file.Size)
 	if err != nil {
 		log.Printf("Error inserting file: %v", err)
@@ -97,7 +97,7 @@ func (fs *FileStore) InsertFile(file FileData) (FileData, error) {
 	return file, err
 }
 
-func (fs *FileStore) InsertHash(files []FileData) error {
+func (fs *FileStore) InsertHash(files []File) error {
 	tx, err := fs.db.Begin()
 	if err != nil {
 		log.Printf("Error starting transaction: %v", err)
@@ -121,7 +121,7 @@ func (fs *FileStore) InsertHash(files []FileData) error {
 	return err
 }
 
-func (fs *FileStore) StoreBatch(files []FileData) error {
+func (fs *FileStore) StoreBatch(files []File) error {
 	tx, err := fs.db.Begin()
 	if err != nil {
 		return err

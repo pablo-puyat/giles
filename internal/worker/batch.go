@@ -7,10 +7,10 @@ import (
 	"giles/internal/database"
 )
 
-func BatchProcessor(store *database.FileStore, filesChan <-chan database.FileData, wg *sync.WaitGroup) {
+func BatchProcessor(store *database.FileStore, filesChan <-chan database.File, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	batch := make([]database.FileData, 0, store.BatchSize)
+	batch := make([]database.File, 0, store.BatchSize)
 
 	for file := range filesChan {
 		batch = append(batch, file)

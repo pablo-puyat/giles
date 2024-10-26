@@ -49,7 +49,7 @@ func runOrganize() error {
 	return organizeFiles(files, hashOrganizer)
 }
 
-func organizeFiles(files []database.FileData, organizer *organizer.Organizer) error {
+func organizeFiles(files []database.File, organizer *organizer.Organizer) error {
 	organized := organizer.OrganizeFiles(files, destination)
 	fmt.Printf("Organizing %d files\n", len(organized))
 	//newPath := generateNewPath(file.Path) // Implement this function based on your renaming logic

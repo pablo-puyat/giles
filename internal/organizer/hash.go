@@ -15,7 +15,7 @@ type Organizer struct {
 	sourceDir string
 }
 
-func (ds *Organizer) OrganizeFiles(files []database.FileData, destination string) []database.FileData {
+func (ds *Organizer) OrganizeFiles(files []database.File, destination string) []database.File {
 	for i, file := range files {
 		n := 2
 		if len(file.Hash) < n {

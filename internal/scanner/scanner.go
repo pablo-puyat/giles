@@ -11,14 +11,14 @@ import (
 
 type Scanner struct {
 	Progress  *Progress
-	FilesChan chan database.FileData
+	FilesChan chan database.File
 	WaitGroup sync.WaitGroup
 }
 
 func New() *Scanner {
 	return &Scanner{
 		Progress:  &Progress{},
-		FilesChan: make(chan database.FileData, 1000),
+		FilesChan: make(chan database.File, 1000),
 	}
 }
 
@@ -53,7 +53,7 @@ func (s *Scanner) ScanFiles(root string) error {
 			return err
 		}
 
-		fileInfo := database.FileData{
+		fileInfo := database.File{
 			Path: path,
 			Name: d.Name(),
 			Size: info.Size(),

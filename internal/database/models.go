@@ -1,6 +1,6 @@
 package database
 
-type FileData struct {
+type File struct {
 	Id     int
 	Name   string
 	Path   string
