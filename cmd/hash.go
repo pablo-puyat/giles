@@ -154,7 +154,7 @@ func getVelocity() string {
 	return fmt.Sprintf("Velocity: %.0f MB/s", v)
 }
 
-func insertFiles(ds *database.DataStore, in <-chan TransformResult) <-chan TransformResult {
+func insertFiles(ds *database.FileStore, in <-chan TransformResult) <-chan TransformResult {
 	out := make(chan TransformResult)
 	go func() {
 		var filesToProcess = make([]database.FileData, 0, workers)

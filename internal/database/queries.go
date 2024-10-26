@@ -2,38 +2,11 @@ package database
 
 import (
 	"database/sql"
-	"fmt"
 	"log"
-	"sync"
 )
 
-var (
-	instance *DataStore
-	once     sync.Once
-)
-
-type DataStore struct {
-	db        *sql.DB
-	BatchSize int
-}
-
-func NewDataStore() (*DataStore, error) {
-	db, err := sql.Open("sqlite3", "./giles.db")
-	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %w", err)
-	}
-
-	createTables(db)
-	createViews(db)
-
-	return &DataStore{
-		db:        db,
-		BatchSize: 100,
-	}, nil
-}
-
-func (ds *DataStore) GetDuplicates() (files []FileData, err error) {
-	rows, err := ds.db.Query(`
+func (fs *FileStore) GetDuplicates() (files []FileData, err error) {
+	rows, err := fs.db.Query(`
 		SELECT files.* 
 		FROM comic_files_hashes cfh, files 
 		WHERE cfh.hash_id in (select hash_id from comic_files_duplicates) AND 
@@ -65,8 +38,8 @@ func (ds *DataStore) GetDuplicates() (files []FileData, err error) {
 	return files, err
 }
 
-func (ds *DataStore) GetFilesWithoutHash() (files []FileData, err error) {
-	rows, err := ds.db.Query(`SELECT id, files.path, size FROM files WHERE hash IS NULL;`)
+func (fs *FileStore) GetFilesWithoutHash() (files []FileData, err error) {
+	rows, err := fs.db.Query(`SELECT id, files.path, size FROM files WHERE hash IS NULL;`)
 	if err != nil {
 		return nil, err
 	}
@@ -87,8 +60,8 @@ func (ds *DataStore) GetFilesWithoutHash() (files []FileData, err error) {
 	return files, err
 }
 
-func (ds *DataStore) GetFilesFrom(source string) (files []FileData, err error) {
-	rows, err := ds.db.Query("SELECT id, path, size, hash FROM files WHERE path LIKE ?", source+"%")
+func (fs *FileStore) GetFilesFrom(source string) (files []FileData, err error) {
+	rows, err := fs.db.Query("SELECT id, path, size, hash FROM files WHERE path LIKE ?", source+"%")
 	if err != nil {
 		return nil, err
 	}
@@ -116,16 +89,16 @@ func (ds *DataStore) GetFilesFrom(source string) (files []FileData, err error) {
 	return files, err
 }
 
-func (ds *DataStore) InsertFile(file FileData) (FileData, error) {
-	_, err := ds.db.Exec(` INSERT OR IGNORE INTO files (name, path, size) VALUES (?, ?, ?);`, file.Name, file.Path, file.Size)
+func (fs *FileStore) InsertFile(file FileData) (FileData, error) {
+	_, err := fs.db.Exec(` INSERT OR IGNORE INTO files (name, path, size) VALUES (?, ?, ?);`, file.Name, file.Path, file.Size)
 	if err != nil {
 		log.Printf("Error inserting file: %v", err)
 	}
 	return file, err
 }
 
-func (ds *DataStore) InsertHash(files []FileData) error {
-	tx, err := ds.db.Begin()
+func (fs *FileStore) InsertHash(files []FileData) error {
+	tx, err := fs.db.Begin()
 	if err != nil {
 		log.Printf("Error starting transaction: %v", err)
 		return err
@@ -145,5 +118,46 @@ func (ds *DataStore) InsertHash(files []FileData) error {
 		return err
 	}
 
+	return err
+}
+
+func (fs *FileStore) StoreBatch(files []FileData) error {
+	tx, err := fs.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare(`
+        INSERT INTO files (path, name, size, mod_time, is_dir)
+        VALUES (?, ?, ?, ?, ?)
+    `)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for _, file := range files {
+		_, err = stmt.Exec(
+			file.Path,
+			file.Name,
+			file.Size,
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+// StoreHash stores a file's hash in the database
+func (fs *FileStore) StoreHash(filePath, hashType, hashValue string) error {
+	_, err := fs.db.Exec(`
+        INSERT INTO file_hashes (file_id, hash_type, hash_value)
+        SELECT id, ?, ?
+        FROM files
+        WHERE path = ?
+    `, hashType, hashValue, filePath)
 	return err
 }
