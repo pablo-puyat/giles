@@ -11,19 +11,16 @@ import (
 )
 
 var scanCmd = &cobra.Command{
-	Use:   "scan",
+	Use:   "scan <path>",
 	Short: "Scan files in a directory",
 	Long: `Recursively scan files in a directory and insert them into a database.
 The name, path and size are recorded.
 
 Usage: giles scan <directory>`,
-	Args: cobra.MaximumNArgs(1),
+	Args:                  cobra.ExactArgs(1),
+	DisableFlagsInUseLine: true,
 	Run: func(cmd *cobra.Command, args []string) {
-		dirPath := "."
-		if len(args) > 0 {
-			dirPath = args[0]
-		}
-		scanDir(dirPath)
+		scanDir(args[0])
 	},
 }
 
