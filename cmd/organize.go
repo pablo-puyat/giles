@@ -34,19 +34,22 @@ func init() {
 }
 
 func runOrganize() error {
-	ds, err := database.New(databasePath)
-	if err != nil {
-		return fmt.Errorf("trouble getting list of files: %w", err)
-	}
+	return nil
+	/*
+		ds, err := database.New(databasePath)
+		if err != nil {
+			return fmt.Errorf("trouble getting list of files: %w", err)
+		}
 
-	files, err := ds.GetFilesFrom(source)
-	if err != nil {
-		return fmt.Errorf("trouble getting list of files: %w", err)
-	}
+		files, err := ds.GetFilesFrom(source)
+		if err != nil {
+			return fmt.Errorf("trouble getting list of files: %w", err)
+		}
 
-	hashOrganizer := organizer.NewOrganizer(destination)
+		hashOrganizer := organizer.NewOrganizer(destination)
 
-	return organizeFiles(files, hashOrganizer)
+		return organizeFiles(files, hashOrganizer)
+	*/
 }
 
 func organizeFiles(files []database.File, organizer *organizer.Organizer) error {

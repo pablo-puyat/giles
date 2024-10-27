@@ -16,9 +16,12 @@ func New(databasePath string) (*FileStore, error) {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	createTables(db)
+	if err := createTables(db); err != nil {
+		return nil, err
+	}
 
 	fmt.Println("Using database: ", databasePath)
+
 	return &FileStore{
 		db:        db,
 		BatchSize: 100,

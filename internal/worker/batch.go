@@ -26,6 +26,7 @@ func BatchProcessor(store *database.FileStore, filesChan <-chan database.File, w
 	// Process remaining files
 	if len(batch) > 0 {
 		if err := store.StoreBatch(batch); err != nil {
+
 			fmt.Printf("Error writing final batch to database: %v\n", err)
 		}
 	}
