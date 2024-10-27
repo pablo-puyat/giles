@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
@@ -34,8 +35,18 @@ func init() {
 		&databasePath,
 		"database",
 		"giles.db",
-		"path to SQLite database file (default is $PWD/giles.db)",
+		"path to SQLite database file",
 	)
 
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+
+	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		if databasePath == "giles.db" {
+			pwd, err := os.Getwd()
+			if err != nil {
+				pwd = "."
+			}
+			databasePath = filepath.Join(pwd, "giles.db")
+		}
+	}
 }

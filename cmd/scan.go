@@ -34,7 +34,7 @@ func init() {
 }
 
 func scanDir(path string) {
-	store, err := database.New()
+	store, err := database.New(databasePath)
 	if err != nil {
 		log.Fatalf("Error accessing database")
 	}

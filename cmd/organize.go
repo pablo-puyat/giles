@@ -34,7 +34,7 @@ func init() {
 }
 
 func runOrganize() error {
-	ds, err := database.New()
+	ds, err := database.New(databasePath)
 	if err != nil {
 		return fmt.Errorf("trouble getting list of files: %w", err)
 	}

@@ -10,14 +10,15 @@ type FileStore struct {
 	BatchSize int
 }
 
-func New() (*FileStore, error) {
-	db, err := sql.Open("sqlite3", "./giles.db")
+func New(databasePath string) (*FileStore, error) {
+	db, err := sql.Open("sqlite3", databasePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
 	createTables(db)
 
+	fmt.Println("Using database: ", databasePath)
 	return &FileStore{
 		db:        db,
 		BatchSize: 100,
