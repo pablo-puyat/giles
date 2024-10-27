@@ -1,13 +1,13 @@
 package cmd
 
 import (
-	"fmt"
 	"giles/internal/database"
 	"giles/internal/scanner"
 	"giles/internal/worker"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/cobra"
 	"log"
+	"sync"
 )
 
 var scanCmd = &cobra.Command{
@@ -41,20 +41,33 @@ func scanDir(path string) {
 
 	s := scanner.New()
 
-	fmt.Println("Counting files...")
-	if err := s.CountFiles(path); err != nil {
-		log.Fatalf("Error while counting files")
-	}
+	// Create buffered done channel
+	done := make(chan bool, 100)
 
-	done := make(chan bool)
-	go s.DisplayProgress(done)
+	// Start progress display
+	progressWg := sync.WaitGroup{}
+	progressWg.Add(1)
+	go func() {
+		defer progressWg.Done()
+		s.DisplayProgress(done)
+	}()
 
+	// Start batch processor
 	s.WaitGroup.Add(1)
 	go worker.BatchProcessor(store, s.FilesChan, &s.WaitGroup)
 
+	// Scan files
 	if err := s.ScanFiles(path); err != nil {
-		log.Println("An error occured while scanning files.")
+		log.Printf("An error occurred while scanning files: %v\n", err)
 	}
+
+	// Close channel after scanning is complete
 	close(s.FilesChan)
+
+	// Wait for processor to finish
 	s.WaitGroup.Wait()
+
+	// Signal progress display to finish and wait for it
+	done <- true
+	progressWg.Wait()
 }

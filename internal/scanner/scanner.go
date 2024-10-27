@@ -23,27 +23,9 @@ type Scanner struct {
 func New() *Scanner {
 	return &Scanner{
 		Progress:  &Progress{},
-		FilesChan: make(chan database.File, 1000),
+		FilesChan: make(chan database.File, 1),
+		WaitGroup: sync.WaitGroup{},
 	}
-}
-
-// CountFiles counts the total number of files in the directory tree
-func (s *Scanner) CountFiles(root string) error {
-	var count int64
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if !d.IsDir() {
-			count++
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	atomic.StoreInt64(&s.Progress.TotalFiles, count)
-	return nil
 }
 
 // ScanFiles walks the directory tree and sends FileInfo to the channel
@@ -62,6 +44,10 @@ func (s *Scanner) ScanFiles(root string) error {
 			return nil
 		}
 
+		if info.Name() == ".DS_Store" {
+			return nil
+		}
+
 		fileHash, err := calcHash(path)
 		if err != nil {
 			log.Println("Error calculating hash")
@@ -77,9 +63,7 @@ func (s *Scanner) ScanFiles(root string) error {
 
 		s.FilesChan <- fileInfo
 
-		if !d.IsDir() {
-			atomic.AddInt64(&s.Progress.ScannedFiles, 1)
-		}
+		atomic.AddInt64(&s.Progress.ScannedFiles, 1)
 
 		return nil
 	})

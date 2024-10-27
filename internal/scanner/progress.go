@@ -7,7 +7,6 @@ import (
 )
 
 type Progress struct {
-	TotalFiles   int64
 	ScannedFiles int64
 }
 
@@ -19,14 +18,14 @@ func (s *Scanner) DisplayProgress(done chan bool) {
 		select {
 		case <-ticker.C:
 			scanned := atomic.LoadInt64(&s.Progress.ScannedFiles)
-			total := atomic.LoadInt64(&s.Progress.TotalFiles)
-			if total > 0 {
-				fmt.Printf("\rProgress: %d/%d files scanned (%.1f%%)",
-					scanned, total,
-					float64(scanned)/float64(total)*100)
+			if scanned > 0 {
+				fmt.Printf("\rProgress: %d files scanned", scanned)
 			}
+
 		case <-done:
-			fmt.Println()
+			scanned := atomic.LoadInt64(&s.Progress.ScannedFiles)
+			fmt.Printf("\rProgress: %d files scanned\n", scanned)
+			fmt.Println("Done")
 			return
 		}
 	}

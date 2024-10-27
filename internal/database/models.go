@@ -2,8 +2,8 @@ package database
 
 type File struct {
 	Id   int
+	Hash string
 	Name string
 	Path string
-	Hash string
 	Size int64
 }
