@@ -2,11 +2,13 @@ package scanner
 
 import (
 	"io/fs"
+	"log"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
 
 	"giles/internal/database"
+	"giles/internal/hash"
 )
 
 type Scanner struct {
@@ -53,10 +55,21 @@ func (s *Scanner) ScanFiles(root string) error {
 			return err
 		}
 
+		if info.IsDir() == true {
+			return nil
+		}
+
+		fileHash, err := hash.Calculate(path)
+		if err != nil {
+			log.Println("Error calculating hash")
+			return err
+		}
+
 		fileInfo := database.File{
 			Path: path,
 			Name: d.Name(),
 			Size: info.Size(),
+			Hash: fileHash,
 		}
 
 		s.FilesChan <- fileInfo

@@ -17,7 +17,6 @@ func New() (*FileStore, error) {
 	}
 
 	createTables(db)
-	createViews(db)
 
 	return &FileStore{
 		db:        db,

@@ -50,7 +50,7 @@ func hashFiles(cmd *cobra.Command, args []string) {
 
 	workers, _ = cmd.Flags().GetInt("workers")
 
-	ds, err := database.NewDataStore()
+	ds, err := database.New()
 	if err != nil {
 		log.Printf("Error with query: %v\n", err)
 		return

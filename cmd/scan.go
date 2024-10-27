@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"giles/internal/database"
 	"giles/internal/scanner"
+	"giles/internal/worker"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/cobra"
 	"log"
@@ -36,7 +37,7 @@ func init() {
 }
 
 func scanDir(path string) {
-	store, err := database.NewDataStore()
+	store, err := database.New()
 	if err != nil {
 		log.Fatalf("Error accessing database")
 	}
@@ -52,9 +53,9 @@ func scanDir(path string) {
 	go s.DisplayProgress(done)
 
 	s.WaitGroup.Add(1)
-	go worker.BatchProcessor(store, s.FilesChange, &s.WaitGroup)
+	go worker.BatchProcessor(store, s.FilesChan, &s.WaitGroup)
 
-	if err := s.ScanFiles(*rootDir); err != nil {
+	if err := s.ScanFiles(path); err != nil {
 		log.Println("An error occured while scanning files.")
 	}
 	close(s.FilesChan)

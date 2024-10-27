@@ -127,10 +127,9 @@ func (fs *FileStore) StoreBatch(files []File) error {
 		return err
 	}
 	defer tx.Rollback()
-
 	stmt, err := tx.Prepare(`
-        INSERT INTO files (path, name, size, mod_time, is_dir)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO files (path, name, size)
+        VALUES (?, ?, ?)
     `)
 	if err != nil {
 		return err
@@ -138,6 +137,7 @@ func (fs *FileStore) StoreBatch(files []File) error {
 	defer stmt.Close()
 
 	for _, file := range files {
+		println(file.Path)
 		_, err = stmt.Exec(
 			file.Path,
 			file.Name,
