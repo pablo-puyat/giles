@@ -24,9 +24,9 @@ func (ds *Organizer) OrganizeFiles(files []database.File, destination string) []
 		directory := file.Hash[:n]
 		files[i].Name = file.Hash
 		files[i].Path = destination + "/" + directory
-		newName := files[i].Path + files[i].Name
+		//newName := files[i].Path + files[i].Name
 		// verify that source files exists
-		println(newName)
+		//println(newName)
 		// check if directory exists and create if it doesn't
 		//if _, err := os.Stat("data/csv_data"); os.IsNotExist(err) {
 		//	err := os.MkdirAll("data/json_data", 0755)

@@ -128,8 +128,8 @@ func (fs *FileStore) StoreBatch(files []File) error {
 	}
 	defer tx.Rollback()
 	stmt, err := tx.Prepare(`
-        INSERT INTO files (path, name, size)
-        VALUES (?, ?, ?)
+        INSERT INTO files (path, name, size, hash)
+        VALUES (?, ?, ?, ?)
     `)
 	if err != nil {
 		return err
@@ -137,11 +137,11 @@ func (fs *FileStore) StoreBatch(files []File) error {
 	defer stmt.Close()
 
 	for _, file := range files {
-		println(file.Path)
 		_, err = stmt.Exec(
 			file.Path,
 			file.Name,
 			file.Size,
+			file.Hash,
 		)
 		if err != nil {
 			return err
@@ -149,15 +149,4 @@ func (fs *FileStore) StoreBatch(files []File) error {
 	}
 
 	return tx.Commit()
-}
-
-// StoreHash stores a file's hash in the database
-func (fs *FileStore) StoreHash(filePath, hashType, hashValue string) error {
-	_, err := fs.db.Exec(`
-        INSERT INTO file_hashes (file_id, hash_type, hash_value)
-        SELECT id, ?, ?
-        FROM files
-        WHERE path = ?
-    `, hashType, hashValue, filePath)
-	return err
 }

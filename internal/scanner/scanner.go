@@ -1,14 +1,17 @@
 package scanner
 
 import (
+	"crypto/sha256"
+	"fmt"
+	"io"
 	"io/fs"
 	"log"
+	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
 
 	"giles/internal/database"
-	"giles/internal/hash"
 )
 
 type Scanner struct {
@@ -59,7 +62,7 @@ func (s *Scanner) ScanFiles(root string) error {
 			return nil
 		}
 
-		fileHash, err := hash.Calculate(path)
+		fileHash, err := calcHash(path)
 		if err != nil {
 			log.Println("Error calculating hash")
 			return err
@@ -80,4 +83,20 @@ func (s *Scanner) ScanFiles(root string) error {
 
 		return nil
 	})
+}
+
+func calcHash(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		log.Printf("Error opening file: %v\n", err)
+		return "", err
+	}
+	defer f.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		log.Printf("Error hashing file: %v\n", err)
+		return "", err
+	}
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }

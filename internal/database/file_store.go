@@ -21,6 +21,6 @@ func New(databasePath string) (*FileStore, error) {
 	fmt.Println("Using database: ", databasePath)
 	return &FileStore{
 		db:        db,
-		BatchSize: 100,
+		BatchSize: 5,
 	}, nil
 }
