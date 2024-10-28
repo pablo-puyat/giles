@@ -27,3 +27,10 @@ func New(databasePath string) (*FileStore, error) {
 		BatchSize: 100,
 	}, nil
 }
+
+func (fs *FileStore) Close() error {
+	if fs.db != nil {
+		return fs.db.Close()
+	}
+	return nil
+}

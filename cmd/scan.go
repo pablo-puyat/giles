@@ -1,13 +1,14 @@
 package cmd
 
 import (
+	"fmt"
 	"giles/internal/database"
 	"giles/internal/scanner"
 	"giles/internal/worker"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/cobra"
 	"log"
-	"sync"
+	"time"
 )
 
 var scanCmd = &cobra.Command{
@@ -15,54 +16,49 @@ var scanCmd = &cobra.Command{
 	Short: "Scan files in a directory",
 	Long: `Recursively scan files in a directory and insert them into a database.
 The name, path and size are recorded.
-
 Usage: giles scan <directory>`,
 	Args:                  cobra.ExactArgs(1),
 	DisableFlagsInUseLine: true,
 	Run: func(cmd *cobra.Command, args []string) {
-		scanDir(args[0])
+		if err := scanDir(args[0]); err != nil {
+			log.Fatalf("Scan failed: %v", err)
+		}
 	},
-}
-
-type Progress struct {
-	totalFiles   int64
-	scannedFiles int64
 }
 
 func init() {
 	rootCmd.AddCommand(scanCmd)
 }
 
-func scanDir(path string) {
+func scanDir(path string) error {
 	store, err := database.New(databasePath)
 	if err != nil {
-		log.Fatalf("Error accessing database")
+		return fmt.Errorf("database access error: %w", err)
 	}
 
 	s := scanner.New()
+	done := make(chan struct{})
 
-	// Create buffered done channel
-	done := make(chan bool, 100)
+	batchDone := make(chan struct{})
 
-	// Start progress display
-	progressWg := sync.WaitGroup{}
-	progressWg.Add(1)
+	go s.DisplayProgress(done)
+
 	go func() {
-		defer progressWg.Done()
-		s.DisplayProgress(done)
+		worker.BatchProcessor(store, s.FilesChan)
+		close(batchDone)
 	}()
 
-	go worker.BatchProcessor(store, s.FilesChan)
-
-	// Scan files
 	if err := s.ScanFiles(path); err != nil {
-		log.Printf("An error occurred while scanning files: %v\n", err)
+		return fmt.Errorf("scan error: %w", err)
 	}
 
-	// Close channel after scanning is complete
 	close(s.FilesChan)
+	<-batchDone
 
-	// Signal progress display to finish and wait for it
-	done <- true
-	progressWg.Wait()
+	time.Sleep(100 * time.Millisecond)
+
+	done <- struct{}{}
+	close(done)
+
+	return nil
 }
