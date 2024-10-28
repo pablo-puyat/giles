@@ -14,13 +14,15 @@ var (
 )
 
 var organizeCmd = &cobra.Command{
-	Use:   "organize",
+	Use:   "organize <source path> <destination path>",
 	Short: "Organize files based on their hash",
 	Long: `This command retrieves files from the database, organizes them into a 
 specified destination directory based on their hash, and updates their 
 new locations in the database.`,
+	Args:                  cobra.ExactArgs(2),
+	DisableFlagsInUseLine: true,
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := runOrganize(); err != nil {
+		if err := runOrganize(args[0], args[1]); err != nil {
 			log.Fatalf("Error organizing files: %v", err)
 		}
 	},
@@ -28,28 +30,28 @@ new locations in the database.`,
 
 func init() {
 	rootCmd.AddCommand(organizeCmd)
-
-	organizeCmd.Flags().StringVarP(&source, "source", "s", "", "Source directory containing files to be organized")
-	organizeCmd.Flags().StringVarP(&destination, "destination", "d", "", "Destination directory for organized files")
 }
 
-func runOrganize() error {
-	return nil
-	/*
-		ds, err := database.New(databasePath)
+func runOrganize(source string, dest string) error {
+	store, err := database.New(databasePath)
+	if err != nil {
+		return fmt.Errorf("trouble getting list of files: %w", err)
+	}
+	defer func(store *database.FileStore) {
+		err := store.Close()
 		if err != nil {
-			return fmt.Errorf("trouble getting list of files: %w", err)
+			log.Println("Error closing database")
 		}
+	}(store)
 
-		files, err := ds.GetFilesFrom(source)
-		if err != nil {
-			return fmt.Errorf("trouble getting list of files: %w", err)
-		}
+	files, err := store.GetFilesFrom(source)
+	if err != nil {
+		return fmt.Errorf("trouble getting list of files: %w", err)
+	}
 
-		hashOrganizer := organizer.NewOrganizer(destination)
+	hashOrganizer := organizer.NewOrganizer(dest)
 
-		return organizeFiles(files, hashOrganizer)
-	*/
+	return organizeFiles(files, hashOrganizer)
 }
 
 func organizeFiles(files []database.File, organizer *organizer.Organizer) error {

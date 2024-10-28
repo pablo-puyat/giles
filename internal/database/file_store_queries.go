@@ -1,6 +1,9 @@
 package database
 
-import "log"
+import (
+	"database/sql"
+	"log"
+)
 
 func (fs *FileStore) InsertHash(files []File) error {
 	tx, err := fs.db.Begin()
@@ -54,4 +57,33 @@ func (fs *FileStore) Batch(files []File) error {
 	}
 
 	return tx.Commit()
+}
+
+func (fs *FileStore) GetFilesFrom(source string) (files []File, err error) {
+	rows, err := fs.db.Query("SELECT id, path, size, hash FROM files WHERE path LIKE ?", source+"%")
+	if err != nil {
+		return nil, err
+	}
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+
+		}
+	}(rows)
+
+	for rows.Next() {
+		var file File
+		err := rows.Scan(&file.Id, &file.Path, &file.Size, &file.Hash)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, file)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	return files, err
 }

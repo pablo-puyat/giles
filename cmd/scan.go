@@ -35,6 +35,12 @@ func scanDir(path string) error {
 	if err != nil {
 		return fmt.Errorf("database access error: %w", err)
 	}
+	defer func(store *database.FileStore) {
+		err := store.Close()
+		if err != nil {
+			log.Println("Error closing database")
+		}
+	}(store)
 
 	s := scanner.New()
 	done := make(chan struct{})
