@@ -22,17 +22,12 @@ The Giles DAM CLI offers the following main commands:
 Scan files in a specified directory, computing hashes and storing metadata.
 
 ```
-giles scan [directory] [flags]
+giles scan <source path> 
 ```
-
-Flags:
-- `--organize` or `-o`: Organize files after scanning
-- `--destination` or `-d`: Destination directory for organized files
 
 Examples:
 ```
 giles scan /path/to/source
-giles scan /path/to/source --organize --destination /path/to/dest
 ```
 
 ### `organize`
@@ -40,43 +35,10 @@ giles scan /path/to/source --organize --destination /path/to/dest
 Move and organize files into a new directory structure based on their hash.
 
 ```
-giles organize [source] [destination]
+giles organize <source> <destination>
 ```
 
 Example:
 ```
 giles organize /path/to/source /path/to/destination
-```
-
-### `search`
-
-Search for files based on various criteria.
-
-```
-giles search [flags]
-```
-
-Flags:
-- `--type` or `-t`: File type to search for
-- `--name` or `-n`: File name to search for
-
-Example:
-```
-giles search --type pdf --name report
-```
-
-### `retrieve`
-
-Retrieve file information or download files.
-
-```
-giles retrieve [file-id] [flags]
-```
-
-Flags:
-- `--download` or `-d`: Download the file instead of returning its location
-
-Example:
-```
-giles retrieve 123456 --download
 ```
