@@ -26,7 +26,7 @@ func (fs *FileStore) InsertHash(files []File) error {
 	return err
 }
 
-func (fs *FileStore) StoreBatch(files []File) error {
+func (fs *FileStore) Batch(files []File) error {
 	tx, err := fs.db.Begin()
 	if err != nil {
 		return err
