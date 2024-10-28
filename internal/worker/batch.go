@@ -2,14 +2,10 @@ package worker
 
 import (
 	"fmt"
-	"sync"
-
 	"giles/internal/database"
 )
 
-func BatchProcessor(store *database.FileStore, filesChan <-chan database.File, wg *sync.WaitGroup) {
-	defer wg.Done()
-
+func BatchProcessor(store *database.FileStore, filesChan <-chan database.File) {
 	batch := make([]database.File, 0, store.BatchSize)
 
 	for file := range filesChan {

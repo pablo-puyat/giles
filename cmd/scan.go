@@ -52,9 +52,7 @@ func scanDir(path string) {
 		s.DisplayProgress(done)
 	}()
 
-	// Start batch processor
-	s.WaitGroup.Add(1)
-	go worker.BatchProcessor(store, s.FilesChan, &s.WaitGroup)
+	go worker.BatchProcessor(store, s.FilesChan)
 
 	// Scan files
 	if err := s.ScanFiles(path); err != nil {
@@ -63,9 +61,6 @@ func scanDir(path string) {
 
 	// Close channel after scanning is complete
 	close(s.FilesChan)
-
-	// Wait for processor to finish
-	s.WaitGroup.Wait()
 
 	// Signal progress display to finish and wait for it
 	done <- true
