@@ -26,21 +26,20 @@ func ByHash(files []database.File, dest string) error {
 			return fmt.Errorf("create directory %s: %w", newPath, err)
 		}
 
-		srcPath := filepath.Join(file.Path, file.Name)
-		destPath := filepath.Join(newPath, file.Name)
+		destPath := filepath.Join(newPath, file.Hash)
 
-		err := os.Rename(srcPath, destPath)
+		err := os.Rename(file.Path, destPath)
 		if err == nil {
-			log.Printf("Moved %s to %s", srcPath, destPath)
+			log.Printf("Moved %s to %s", file.Path, destPath)
 			continue
 		}
 
-		if err := copyAndVerify(srcPath, destPath, file.Hash); err != nil {
-			return fmt.Errorf("copy and verify %s: %w", srcPath, err)
+		if err := copyAndVerify(file.Path, destPath, file.Hash); err != nil {
+			return fmt.Errorf("copy and verify %s: %w", destPath, err)
 		}
 
-		if err := os.Remove(srcPath); err != nil {
-			return fmt.Errorf("remove original %s: %w", srcPath, err)
+		if err := os.Remove(file.Path); err != nil {
+			return fmt.Errorf("remove original %s: %w", file.Path, err)
 		}
 
 		file.Name = file.Hash

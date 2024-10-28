@@ -17,7 +17,7 @@ new locations in the database.`,
 	Args:                  cobra.ExactArgs(2),
 	DisableFlagsInUseLine: true,
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := runOrganize(args[0], args[1]); err != nil {
+		if err := organize(args[0], args[1]); err != nil {
 			log.Fatalf("Error organizing files: %v", err)
 		}
 	},
@@ -27,7 +27,7 @@ func init() {
 	rootCmd.AddCommand(organizeCmd)
 }
 
-func runOrganize(source string, dest string) error {
+func organize(source string, dest string) error {
 	store, err := database.New(databasePath)
 	if err != nil {
 		return fmt.Errorf("trouble getting list of files: %w", err)
@@ -48,5 +48,10 @@ func runOrganize(source string, dest string) error {
 		return err
 	}
 
+	if err := store.Update(files); err != nil {
+		return err
+	}
+
+	fmt.Println("Done.")
 	return nil
 }
