@@ -8,7 +8,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"sync"
 	"sync/atomic"
 
 	"giles/internal/database"
@@ -17,14 +16,12 @@ import (
 type Scanner struct {
 	Progress  *Progress
 	FilesChan chan database.File
-	WaitGroup sync.WaitGroup
 }
 
 func New() *Scanner {
 	return &Scanner{
 		Progress:  &Progress{},
 		FilesChan: make(chan database.File, 1),
-		WaitGroup: sync.WaitGroup{},
 	}
 }
 
