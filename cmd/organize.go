@@ -8,11 +8,6 @@ import (
 	"log"
 )
 
-var (
-	source      string
-	destination string
-)
-
 var organizeCmd = &cobra.Command{
 	Use:   "organize <source path> <destination path>",
 	Short: "Organize files based on their hash",
@@ -49,30 +44,9 @@ func runOrganize(source string, dest string) error {
 		return fmt.Errorf("trouble getting list of files: %w", err)
 	}
 
-	hashOrganizer := organizer.NewOrganizer(dest)
+	if err := organizer.ByHash(files, dest); err != nil {
+		return err
+	}
 
-	return organizeFiles(files, hashOrganizer)
-}
-
-func organizeFiles(files []database.File, organizer *organizer.Organizer) error {
-	organized := organizer.OrganizeFiles(files, destination)
-	fmt.Printf("Organizing %d files\n", len(organized))
-	//newPath := generateNewPath(file.Path) // Implement this function based on your renaming logic
-	//err := os.Rename(file.Path, newPath)
-	//if err != nil {
-	//	return nil, fmt.Errorf("failed to rename file %s: %w", file.Path, err)
-	//}
-	//files[i].Path = newPath
-	//TODO: batch these calls
-	//for _, file := range organized {
-	//fmt.Println(file.Name)
-	//fmt.Println(file.Path)
-	//err = db.UpdateFileLocation(file.ID, file.Path)
-	//if err != nil {
-	//	return fmt.Errorf("failed to update location for file %s: %w", file.ID, err)
-	//}
-	//}
-
-	fmt.Println("All files organized and database updated")
 	return nil
 }

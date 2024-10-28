@@ -36,7 +36,7 @@ func (fs *FileStore) Batch(files []File) error {
 	}
 	defer tx.Rollback()
 	stmt, err := tx.Prepare(`
-        INSERT INTO files (path, name, size, hash)
+        INSERT INTO files (original_path, original_name, size, hash)
         VALUES (?, ?, ?, ?)
     `)
 	if err != nil {
