@@ -3,70 +3,88 @@ package scanner
 import (
 	"crypto/sha256"
 	"fmt"
+	"giles/internal/database"
 	"io"
 	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
-	"sync/atomic"
-
-	"giles/internal/database"
+	"sync"
 )
 
 type Scanner struct {
-	Progress  *Progress
-	FilesChan chan database.File
+	Progress *Progress
+	Files    chan database.File
 }
 
 func New() *Scanner {
 	return &Scanner{
-		Progress:  &Progress{},
-		FilesChan: make(chan database.File, 1),
+		Progress: &Progress{},
 	}
 }
 
-// ScanFiles walks the directory tree and sends FileInfo to the channel
-func (s *Scanner) ScanFiles(root string) error {
-	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
+// walks the directory tree and sends FileInfo to the channel
+func (s *Scanner) Run(root string) <-chan database.File {
+	out := make(chan database.File)
+	go func() {
+		defer close(out)
+		filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
 
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
 
-		if info.IsDir() == true {
+			if info.IsDir() {
+				return nil
+			}
+
+			if info.Name() == ".DS_Store" {
+				return nil
+			}
+
+			fileInfo := database.File{
+				Path: path,
+				Name: d.Name(),
+				Size: info.Size(),
+			}
+
+			out <- fileInfo
+
 			return nil
-		}
-
-		if info.Name() == ".DS_Store" {
-			return nil
-		}
-
-		fileHash, err := calcHash(path)
-		if err != nil {
-			log.Println("Error calculating hash")
-			return err
-		}
-
-		fileInfo := database.File{
-			Path: path,
-			Name: d.Name(),
-			Size: info.Size(),
-			Hash: fileHash,
-		}
-
-		s.FilesChan <- fileInfo
-
-		atomic.AddInt64(&s.Progress.ScannedFiles, 1)
-
-		return nil
-	})
+		})
+	}()
+	return out
 }
 
-func calcHash(path string) (string, error) {
+func (s *Scanner) Hash(in <-chan database.File) <-chan database.File {
+	out := make(chan database.File)
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for file := range in {
+				hash, err := hash(file.Path)
+				if err != nil {
+					log.Printf("Error hashing file: %v", err)
+				}
+				file.Hash = hash
+				out <- file
+			}
+		}()
+	}
+	go func() {
+		wg.Wait()
+		close(out)
+	}()
+	return out
+}
+
+func hash(path string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		log.Printf("Error opening file: %v\n", err)

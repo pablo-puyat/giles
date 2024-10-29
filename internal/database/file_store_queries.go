@@ -25,7 +25,6 @@ func (fs *FileStore) GetFilesFrom(source string) (files []File, err error) {
 	defer func(rows *sql.Rows) {
 		err := rows.Close()
 		if err != nil {
-
 		}
 	}(rows)
 
@@ -47,7 +46,7 @@ func (fs *FileStore) GetFilesFrom(source string) (files []File, err error) {
 	return files, err
 }
 
-func (fs *FileStore) Batch(files []File) error {
+func (fs *FileStore) Insert(files []File) error {
 	return fs.execTx(func(tx *sql.Tx) error {
 		stmt, err := tx.Prepare(`
             INSERT INTO files (original_path, original_name, size, hash)
@@ -89,21 +88,6 @@ func (fs *FileStore) Update(files []File) error {
 				file.Path,
 				file.Name,
 				file.Id,
-			); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-}
-
-func (fs *FileStore) InsertHash(files []File) error {
-	return fs.execTx(func(tx *sql.Tx) error {
-		for _, f := range files {
-			if _, err := tx.Exec(
-				`UPDATE files set hash = ? WHERE id = ?`,
-				f.Hash,
-				f.Id,
 			); err != nil {
 				return err
 			}

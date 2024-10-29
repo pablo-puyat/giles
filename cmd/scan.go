@@ -5,10 +5,12 @@ import (
 	"giles/internal/database"
 	"giles/internal/scanner"
 	"giles/internal/worker"
+	"log"
+	"sync"
+	"time"
+
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/cobra"
-	"log"
-	"time"
 )
 
 var scanCmd = &cobra.Command{
@@ -31,6 +33,7 @@ func init() {
 }
 
 func scanDir(path string) error {
+	start := time.Now()
 	store, err := database.New(databasePath)
 	if err != nil {
 		return fmt.Errorf("database access error: %w", err)
@@ -43,28 +46,18 @@ func scanDir(path string) error {
 	}(store)
 
 	s := scanner.New()
-	done := make(chan struct{})
+	files := s.Run(path)
+	hashes := s.Hash(files)
+	completed := worker.BatchInsert(store, hashes)
 
-	batchDone := make(chan struct{})
-
-	go s.DisplayProgress(done)
-
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
-		worker.BatchProcessor(store, s.FilesChan)
-		close(batchDone)
+		defer wg.Done()
+		s.DisplayProgress(completed)
 	}()
-
-	if err := s.ScanFiles(path); err != nil {
-		return fmt.Errorf("scan error: %w", err)
-	}
-
-	close(s.FilesChan)
-	<-batchDone
-
-	time.Sleep(100 * time.Millisecond)
-
-	done <- struct{}{}
-	close(done)
-
+	wg.Wait()
+	fmt.Println("Done.")
+	fmt.Printf("Took %v\n", time.Since(start))
 	return nil
 }
