@@ -57,7 +57,6 @@ func scanDir(path string) error {
 		s.DisplayProgress(completed)
 	}()
 	wg.Wait()
-	fmt.Println("Done.")
-	fmt.Printf("Took %v\n", time.Since(start))
+	fmt.Printf("scan completed in %v\n", time.Since(start))
 	return nil
 }

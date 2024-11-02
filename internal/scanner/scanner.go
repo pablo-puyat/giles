@@ -13,14 +13,11 @@ import (
 )
 
 type Scanner struct {
-	Progress *Progress
-	Files    chan database.File
+	Files chan database.File
 }
 
 func New() *Scanner {
-	return &Scanner{
-		Progress: &Progress{},
-	}
+	return &Scanner{}
 }
 
 // walks the directory tree and sends FileInfo to the channel
