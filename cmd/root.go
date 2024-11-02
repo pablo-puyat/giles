@@ -1,16 +1,11 @@
 package cmd
 
 import (
-	"giles/internal/app"
-	"giles/internal/database"
-	"github.com/charmbracelet/log"
 	"github.com/spf13/cobra"
 	"os"
 )
 
 var (
-	logger *log.Logger
-	db     *database.FileStore
 	dbPath string
 	// rootCmd represents the base command when called without any subcommands
 	rootCmd = &cobra.Command{
@@ -37,17 +32,9 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(
 		&dbPath,
 		"database",
-		"giles.db",
+		"",
 		"path to SQLite database file",
 	)
 
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-
-	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
-		a, err := app.New(dbPath)
-		if err != nil {
-		}
-		logger = a.Logger
-		db = a.Database
-	}
 }
