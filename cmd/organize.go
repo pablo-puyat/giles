@@ -28,7 +28,7 @@ func init() {
 }
 
 func organize(source string, dest string) error {
-	store, err := database.New(databasePath)
+	store, err := database.New(dbPath)
 	if err != nil {
 		return fmt.Errorf("trouble getting list of files: %w", err)
 	}

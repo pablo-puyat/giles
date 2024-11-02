@@ -34,7 +34,7 @@ func init() {
 
 func scanDir(path string) error {
 	start := time.Now()
-	store, err := database.New(databasePath)
+	store, err := database.New(dbPath)
 	if err != nil {
 		return fmt.Errorf("database access error: %w", err)
 	}
