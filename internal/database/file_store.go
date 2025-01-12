@@ -34,7 +34,7 @@ func New(dbPath string) (*FileStore, error) {
 		return nil, fmt.Errorf("failed to create table: %w", err)
 	}
 
-	fmt.Printf("using database: %s\n", path)
+	fmt.Printf("database: %s\n", path)
 
 	return &FileStore{
 		db:        db,
