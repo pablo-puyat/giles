@@ -6,6 +6,7 @@ import (
 
 func (fs *FileStore) execTx(fn func(*sql.Tx) error) error {
 	tx, err := fs.db.Begin()
+
 	if err != nil {
 		return err
 	}
@@ -19,9 +20,11 @@ func (fs *FileStore) execTx(fn func(*sql.Tx) error) error {
 
 func (fs *FileStore) GetFilesFrom(source string) (files []File, err error) {
 	rows, err := fs.db.Query("SELECT id, coalesce(name, original_name) as name, coalesce(path, original_path) as path2, size, hash FROM files WHERE path2 LIKE ?", source+"%")
+
 	if err != nil {
 		return nil, err
 	}
+
 	defer func(rows *sql.Rows) {
 		err := rows.Close()
 		if err != nil {
@@ -34,11 +37,11 @@ func (fs *FileStore) GetFilesFrom(source string) (files []File, err error) {
 		if err != nil {
 			return nil, err
 		}
-		println(file.Id)
 		files = append(files, file)
 	}
 
 	err = rows.Err()
+
 	if err != nil {
 		return nil, err
 	}
@@ -52,9 +55,11 @@ func (fs *FileStore) Insert(files []File) error {
             INSERT INTO files (original_path, original_name, size, hash)
             VALUES (?, ?, ?, ?)
         `)
+
 		if err != nil {
 			return err
 		}
+
 		defer stmt.Close()
 
 		for _, file := range files {
@@ -78,12 +83,15 @@ func (fs *FileStore) Update(files []File) error {
             SET path = ?, name = ?
             WHERE id = ?
         `)
+
 		if err != nil {
 			return err
 		}
+
 		defer stmt.Close()
 
-		for _, file := range files {
+		for i := 0; i < len(files); i++ {
+			file := (files)[i]
 			if _, err = stmt.Exec(
 				file.Path,
 				file.Name,
@@ -92,6 +100,7 @@ func (fs *FileStore) Update(files []File) error {
 				return err
 			}
 		}
+
 		return nil
 	})
 }

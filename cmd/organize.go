@@ -35,11 +35,12 @@ func organize(source string, dest string) error {
 	defer func(store *database.FileStore) {
 		err := store.Close()
 		if err != nil {
-			log.Println("Error closing database")
+			log.Println("error closing database")
 		}
 	}(store)
 
 	files, err := store.GetFilesFrom(source)
+
 	if err != nil {
 		return fmt.Errorf("trouble getting list of files: %w", err)
 	}
@@ -52,6 +53,6 @@ func organize(source string, dest string) error {
 		return err
 	}
 
-	fmt.Println("Done.")
+	fmt.Println("done")
 	return nil
 }
