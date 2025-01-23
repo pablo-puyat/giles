@@ -23,12 +23,12 @@ func NewTableModel(files []database.File, store *database.FileStore) TableModel 
 	columns := []table.Column{
 		{Title: "Filename", Width: 30},
 		{Title: "Path", Width: 50},
-		{Title: "Type", Width: 20},
+		{Title: "Size", Width: 20},
 	}
 
 	rows := make([]table.Row, len(files))
 	for i, file := range files {
-		rows[i] = table.Row{file.Name, file.Path}
+		rows[i] = table.Row{file.Name, file.Path, formatSize(file.Size)}
 	}
 
 	t := table.New(
@@ -97,4 +97,17 @@ func (m TableModel) View() string {
 		return fmt.Sprintf("Error: %v", m.err)
 	}
 	return m.table.View() + "\nPress q to quit, d to delete selected file\n"
+}
+
+func formatSize(size int64) string {
+    const unit = 1024
+    if size < unit {
+        return fmt.Sprintf("%d B", size)
+    }
+    div, exp := int64(unit), 0
+    for n := size / unit; n >= unit; n /= unit {
+        div *= unit
+        exp++
+    }
+    return fmt.Sprintf("%.1f %cB", float64(size)/float64(div), "KMGTPE"[exp])
 }

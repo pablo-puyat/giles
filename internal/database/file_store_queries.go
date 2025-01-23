@@ -49,7 +49,7 @@ func (fs *FileStore) GetFiles() (files []File, err error){
 	return files, err
 }
 func (fs *FileStore) GetFilesFrom(source string) (files []File, err error) {
-	rows, err := fs.db.Query("SELECT id, coalesce(name, original_name) as name, coalesce(path, original_path) as path2, size, hash FROM files WHERE path2 LIKE ?", source+"%")
+	rows, err := fs.db.Query("SELECT id, original_name as name, original_path as path, size, hash FROM files WHERE path LIKE ?", source+"%")
 
 	if err != nil {
 		return nil, err
